@@ -59,3 +59,25 @@
 @supports not(backdrop-filter:blur(1px)){.glass{background:var(--panel)!important}.primary,.dock-thumb{background:#e1e5ee!important}}
 :root[data-contrast=true]{--text:#fff;--muted:#e5e5e5;--panel:#151515;--scrim:#151515;--border:#ddd;--surface:#222}:root[data-contrast=true] .app{background:#111}:root[data-contrast=true] .glass{background:#222;color:#fff}:root[data-contrast=true] .dock>button{color:#fff}:root[data-contrast=true] .dock>button[aria-selected=true]{color:#222}
 @media print{.app{background:#fff}.app:before{display:none}}
+
+/* Compact navigation: retain 44px touch targets without scaling the whole UI. */
+.dock-wrap{gap:10px;bottom:max(18px,env(safe-area-inset-bottom))}
+.dock{--dock-width:450px;padding:6px;border-radius:42px}
+.dock>button{min-height:54px;padding:6px 3px;gap:4px;font-size:10px}
+.dock>button svg{width:20px;height:20px}
+.dock>button+button:before{transform:translateX(-36px)}
+.dock-thumb{left:6px;top:6px;width:calc((100% - 12px)/6);height:calc(100% - 12px);border-radius:32px}
+.settings-toggle{width:44px;height:44px}
+.settings-toggle svg{width:19px;height:19px}
+.compact .dock{--dock-width:330px}
+.compact .dock>button{min-height:44px}
+.toast{bottom:100px}
+@media(max-width:760px){
+ .dock-wrap{width:calc(100% - 16px);max-width:390px;gap:6px;bottom:max(12px,env(safe-area-inset-bottom))}
+ .dock,.compact .dock{--dock-width:100%;padding:4px}
+ .dock>button{min-height:44px;padding:4px 2px;gap:2px;font-size:8px}
+ .dock>button svg{width:19px;height:19px}
+ .dock-thumb{left:4px;top:4px;width:calc((100% - 8px)/6);height:calc(100% - 8px)}
+ .settings-toggle{width:44px;height:44px}
+ .toast{bottom:86px}
+}
