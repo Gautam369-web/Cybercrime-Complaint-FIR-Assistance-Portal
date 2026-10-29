@@ -1,0 +1,20 @@
+{
+  "errors": [],
+  "overflow": false,
+  "home": [],
+  "review": [],
+  "frost": [],
+  "mobile": [],
+  "checks": [
+    "Consent gate",
+    "10 questions",
+    "Invalid URL rejected",
+    "Evidence file added",
+    "Review consent",
+    "Demo reference",
+    "Theme switch",
+    "2D fallback",
+    "Dock arrow keys",
+    "Reduced transparency"
+  ]
+}

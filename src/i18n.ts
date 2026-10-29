@@ -1,0 +1,12 @@
+import i18n from 'i18next';
+import {initReactI18next} from 'react-i18next';
+import en from './locales/en.json';
+import hi from './locales/hi.json';
+import pa from './locales/pa.json';
+import bn from './locales/bn.json';
+import ta from './locales/ta.json';
+import te from './locales/te.json';
+import mr from './locales/mr.json';
+export const languages=[['en','English'],['hi','हिन्दी'],['pa','ਪੰਜਾਬੀ'],['bn','বাংলা'],['ta','தமிழ்'],['te','తెలుగు'],['mr','मराठी']];
+i18n.use(initReactI18next).init({resources:Object.fromEntries(Object.entries({en,hi,pa,bn,ta,te,mr}).map(([key,value])=>[key,{translation:value}])),lng:'en',fallbackLng:'en',interpolation:{escapeValue:false}});
+export default i18n;
