@@ -13,7 +13,7 @@ await page.getByRole('button',{name:'Report a cybercrime',exact:true}).click();
 if(!await page.getByRole('button',{name:'Begin my complaint',exact:true}).isDisabled())throw Error('Consent bypass');
 await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Begin my complaint',exact:true}).click();
 const answers=['QA Test Person','qa@example.com','Delhi, Delhi','UPI / online fraud','2026-10-01T10:30','5000','TX-QA-123','test-suspect@example.com','Example payment app','This is a synthetic test. I received a misleading payment request.'];
-for(const answer of answers){await page.locator('#answer').fill(answer);await page.getByRole('button',{name:'Continue',exact:true}).click();}
+for(const [index,answer] of answers.entries()){await page.getByText(`Question ${index+1} of 10`,{exact:true}).waitFor();await page.locator('#answer').fill(answer);await page.locator('#answer').press('Tab');await page.getByRole('button',{name:'Continue',exact:true}).scrollIntoViewIfNeeded();await page.getByRole('button',{name:'Continue',exact:true}).click();if(index<9)await page.getByText(`Question ${index+2} of 10`,{exact:true}).waitFor({timeout:5000}).catch(async e=>{await page.screenshot({path:'docs/qa/flow-failure.png',fullPage:true});console.log(await page.locator('.workspace-panel').innerText());throw e;});}
 await page.getByRole('textbox',{name:'Evidence URL'}).fill('javascript:alert(1)');await page.getByRole('button',{name:'Add link',exact:true}).click();if(!await page.getByRole('alert').isVisible())throw Error('Unsafe link accepted');
 await page.getByRole('textbox',{name:'Evidence URL'}).fill('https://example.com/evidence');await page.getByRole('button',{name:'Add link',exact:true}).click();
 await page.getByLabel('Choose evidence files').setInputFiles({name:'receipt.txt',mimeType:'text/plain',buffer:Buffer.from('Synthetic QA evidence')});
@@ -23,7 +23,7 @@ const reviewAxe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag2
 await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Confirm demo complaint',exact:true}).click();
 if(!await page.getByText(/^DEMO-/).isVisible())throw Error('No demo confirmation');
 await page.getByRole('tab',{name:'Home',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
-await page.getByRole('button',{name:'Frost',exact:true}).click();await page.getByRole('button',{name:'Close dialog'}).click();
+await page.getByRole('dialog').getByRole('button',{name:'Frost',exact:true}).click();await page.getByRole('button',{name:'Close dialog'}).click();
 await page.screenshot({path:'docs/qa/frost.png',fullPage:true});
 const frostAxe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze();
 await page.setViewportSize({width:390,height:844});await page.waitForTimeout(500);await page.screenshot({path:'docs/qa/mobile.png',fullPage:true});

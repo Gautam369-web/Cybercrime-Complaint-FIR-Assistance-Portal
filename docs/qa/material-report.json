@@ -1,0 +1,26 @@
+[
+  {
+    "theme": "Obsidian",
+    "mobile": false,
+    "overflow": false,
+    "violations": []
+  },
+  {
+    "theme": "Obsidian",
+    "mobile": true,
+    "overflow": false,
+    "violations": []
+  },
+  {
+    "theme": "Frost",
+    "mobile": false,
+    "overflow": false,
+    "violations": []
+  },
+  {
+    "theme": "Frost",
+    "mobile": true,
+    "overflow": false,
+    "violations": []
+  }
+]

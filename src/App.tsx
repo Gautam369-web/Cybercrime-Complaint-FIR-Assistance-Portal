@@ -35,6 +35,7 @@ export default function App(){
   <a className="skip-link" href="#main-content">Skip to content</a>
   <div className="ambient ambient-one"/><div className="ambient ambient-two"/>
   <div className="brand" aria-label="Village of Justice"><span className="brand-mark"><ShieldCheck size={24}/></span><div>the village of <strong>justice</strong><span>A little guidance. A way forward.</span></div></div>
+  <div className="appearance-picker glass" aria-label="Appearance"><button aria-pressed={theme==='frost'} onClick={()=>setTheme('frost')}><Sun size={16}/>Frost</button><button aria-pressed={theme==='obsidian'} onClick={()=>setTheme('obsidian')}><Moon size={16}/>Obsidian</button></div>
   <GlassButton className="quick-exit" onClick={quickExit}>Exit quickly <ArrowUpRight size={16}/></GlassButton>
   <main id="main-content" ref={contentRef} className={active==='home'?'home-layout':'workspace-layout'} onScroll={()=>setTyping(false)}>
    <div role="region" className={`scene-area ${active!=='home'?'scene-background':''}`} aria-label="The Village of Justice, an interactive 3D village">
