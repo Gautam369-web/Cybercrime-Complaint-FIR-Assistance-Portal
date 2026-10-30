@@ -32,3 +32,24 @@
 :root[data-contrast=true] .eyebrow,:root[data-contrast=true] .trust-row span,:root[data-contrast=true] .dock>button{color:#fff}
 :root[data-contrast=true] .dock>button[aria-selected=true]{color:#222}
 @media print{.app:after{display:none}}
+
+/* Keep settings choices in the sheet instead of an unstyled OS popup. */
+.modal{scrollbar-width:none;overscroll-behavior:contain}
+.modal::-webkit-scrollbar{display:none}
+.modal:has(.settings-body){width:min(540px,calc(100vw - 28px));max-height:calc(100dvh - 28px);padding:24px;overflow-y:auto}
+.modal:has(.settings-body)>.row{margin-bottom:14px}
+.modal:has(.settings-body) h2{font-size:20px}
+.settings-languages{border:0;padding:0;margin:0;min-width:0}
+.settings-languages legend{font-size:13px;margin-bottom:10px;padding:0;font-weight:550}
+.settings-language-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.language-choice{display:flex;position:relative;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:8px 7px;border-radius:18px;cursor:pointer;font-size:14px;line-height:1.5;background:var(--surface);color:var(--text);box-shadow:inset 0 1px 1px var(--edge-soft),0 3px 10px #0000000a}
+.language-choice input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer}
+.language-choice:has(input:checked){background:#b8cfde24;border-color:var(--lens-edge);box-shadow:inset 0 1px 3px var(--edge-soft),0 0 0 1px var(--lens-edge)}
+.language-choice:has(input:focus-visible){outline:3px solid var(--text);outline-offset:3px}
+.language-selected{width:12px;font-size:12px;flex-shrink:0}
+.settings-body .settings-row{margin:9px 0;min-height:44px}
+.settings-body>p.small-text{font-size:11px;line-height:1.55;margin:12px 0}
+.settings-body>p:last-child{margin-bottom:0}
+.settings-body .theme-switch button{padding:7px 12px}
+:root[data-large=true] .settings-body>p.small-text{font-size:13px}
+@media(max-width:480px){.modal:has(.settings-body){padding:20px}.modal:has(.settings-body) h2{font-size:18px;max-width:calc(100% - 52px)}.settings-language-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.language-choice{font-size:13px}.settings-body .settings-row{margin:7px 0}}
