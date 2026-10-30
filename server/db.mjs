@@ -1,0 +1,15 @@
+import {DatabaseSync} from 'node:sqlite';
+import fs from 'node:fs';
+import path from 'node:path';
+export const directory=path.resolve(process.env.DATA_DIR||'data');
+fs.mkdirSync(directory,{recursive:true});
+export const db=new DatabaseSync(path.join(directory,'portal.sqlite'));
+db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,password TEXT NOT NULL,role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user','admin')));
+CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS complaints(id TEXT PRIMARY KEY,owner TEXT NOT NULL REFERENCES users(id),title TEXT NOT NULL,narrative TEXT NOT NULL,details TEXT NOT NULL DEFAULT '{}',status TEXT NOT NULL DEFAULT 'pending_review',ai TEXT NOT NULL DEFAULT '{"state":"not_run"}',ai_consent INTEGER NOT NULL DEFAULT 0,created TEXT NOT NULL,updated TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS complaints_owner ON complaints(owner,created);
+CREATE INDEX IF NOT EXISTS complaints_status ON complaints(status,created);
+CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT,complaint TEXT NOT NULL REFERENCES complaints(id),actor TEXT NOT NULL REFERENCES users(id),status TEXT NOT NULL,note TEXT NOT NULL,created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS files(id TEXT PRIMARY KEY,complaint TEXT NOT NULL REFERENCES complaints(id),name TEXT NOT NULL,mime TEXT NOT NULL,size INTEGER NOT NULL);
+`);

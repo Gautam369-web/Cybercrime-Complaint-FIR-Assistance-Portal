@@ -1,5 +1,9 @@
 # The Village of Justice
 
+## Local management portal
+
+Accounts, private complaint submission, admin review, status history and private evidence downloads are now implemented with SQLite and local disk storage. Start `npm run api` alongside `npm run dev -- --port 5174`, then visit http://127.0.0.1:5174/#account. See [management setup](docs/management-setup.md) for admin access, Gemini configuration and production limitations. Gemini is disabled until configured; human review works independently. This section supersedes the original prototype-only architecture notes below for the authenticated portal. The guest preparation experience remains browser-local until an explicit portal submission.
+
 An independent cybercrime complaint preparation prototype. No complaint is sent to police and no FIR is registered. The confirmation reference is explicitly a local demo reference.
 
 ## Run

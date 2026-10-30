@@ -1,9 +1,10 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import './i18n';
-import App from './App';
+import PortalRoot from './PortalRoot';
 import './styles.css';
 import './liquid-glass.css';
 import './lens-world.css';
+import './management.css';
 import LensEffects from './LensEffects';
-createRoot(document.getElementById('root')!).render(<React.StrictMode><LensEffects/><App/></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><LensEffects/><PortalRoot/></React.StrictMode>);
