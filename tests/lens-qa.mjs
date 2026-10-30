@@ -1,0 +1,17 @@
+import {chromium} from '@playwright/test';
+import assert from 'node:assert/strict';
+const browser=await chromium.launch({channel:'chrome',headless:true});
+const context=await browser.newContext({viewport:{width:1440,height:1000}});
+const page=await context.newPage();
+await page.goto('http://127.0.0.1:5174/');await page.waitForTimeout(1200);
+const exitBounds=await page.locator('.quick-exit').boundingBox();assert.ok(exitBounds.x>1100&&exitBounds.x+exitBounds.width<=1440,'Quick exit remains in the top-right corner');
+const color=()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--world-base').trim());
+const before=await color();await page.locator('.appearance-picker').getByRole('button',{name:'Frost',exact:true}).click();await page.waitForTimeout(250);const middle=await color();await page.waitForTimeout(800);const after=await color();assert.notEqual(before,middle);assert.notEqual(middle,after);
+const card=page.locator('.language-card');const bounds=await card.boundingBox();await page.mouse.move(bounds.x+80,bounds.y+45);await page.waitForTimeout(400);
+assert.equal(await card.getAttribute('data-lens'),'true');
+const lens=await card.evaluate(el=>({x:el.style.getPropertyValue('--lens-x'),opacity:getComputedStyle(el,'::after').opacity,filter:getComputedStyle(el,'::after').backdropFilter}));assert.equal(lens.opacity,'1');assert.ok(lens.filter.includes('saturate'));
+await page.screenshot({path:'docs/qa/lens-light.png',fullPage:true});
+await page.mouse.move(bounds.x+200,bounds.y+100);await page.waitForTimeout(50);assert.notEqual(await card.evaluate(el=>el.style.getPropertyValue('--lens-x')),lens.x);
+await page.locator('.appearance-picker').getByRole('button',{name:'Obsidian',exact:true}).click();await page.waitForTimeout(1000);await card.hover();await page.waitForTimeout(350);await page.screenshot({path:'docs/qa/lens-dark.png',fullPage:true});
+await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await card.evaluate(el=>getComputedStyle(el,'::after').display),'none');
+console.log(JSON.stringify({transition:{before,middle,after},lens,pointerTracking:true,reducedMotion:true}));await browser.close();

@@ -4,4 +4,6 @@ import './i18n';
 import App from './App';
 import './styles.css';
 import './liquid-glass.css';
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+import './lens-world.css';
+import LensEffects from './LensEffects';
+createRoot(document.getElementById('root')!).render(<React.StrictMode><LensEffects/><App/></React.StrictMode>);
