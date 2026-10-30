@@ -53,3 +53,14 @@
 .settings-body .theme-switch button{padding:7px 12px}
 :root[data-large=true] .settings-body>p.small-text{font-size:13px}
 @media(max-width:480px){.modal:has(.settings-body){padding:20px}.modal:has(.settings-body) h2{font-size:18px;max-width:calc(100% - 52px)}.settings-language-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.language-choice{font-size:13px}.settings-body .settings-row{margin:7px 0}}
+
+/* Page scrollbar: quiet, visible, and distinct from the scroll-free settings sheet. */
+:root{--scroll-track:#182738;--scroll-thumb:#7893aa;--scroll-hover:#a3c0d5;scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) var(--scroll-track);scrollbar-gutter:stable}
+:root[data-theme=frost]{--scroll-track:#99afc0;--scroll-thumb:#4f6d86;--scroll-hover:#34526d}
+html::-webkit-scrollbar{width:10px;height:10px}
+html::-webkit-scrollbar-track{background:var(--scroll-track)}
+html::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border:2px solid var(--scroll-track);border-radius:99px;min-height:48px}
+html::-webkit-scrollbar-thumb:hover{background:var(--scroll-hover)}
+html::-webkit-scrollbar-corner{background:var(--scroll-track)}
+:root[data-contrast=true]{scrollbar-color:#eee #222}
+@media(forced-colors:active){:root{scrollbar-color:auto}}
