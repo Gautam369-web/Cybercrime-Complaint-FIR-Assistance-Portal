@@ -1,0 +1,87 @@
+{
+  "contrast": [
+    {
+      "theme": "Obsidian",
+      "location": "bright",
+      "text": "h2",
+      "minRatio": 14.73
+    },
+    {
+      "theme": "Obsidian",
+      "location": "bright",
+      "text": "p",
+      "minRatio": 10
+    },
+    {
+      "theme": "Obsidian",
+      "location": "dark",
+      "text": "h2",
+      "minRatio": 15.22
+    },
+    {
+      "theme": "Obsidian",
+      "location": "dark",
+      "text": "p",
+      "minRatio": 10.34
+    },
+    {
+      "theme": "Frost",
+      "location": "bright",
+      "text": "h2",
+      "minRatio": 8.71
+    },
+    {
+      "theme": "Frost",
+      "location": "bright",
+      "text": "p",
+      "minRatio": 6.4
+    },
+    {
+      "theme": "Frost",
+      "location": "dark",
+      "text": "h2",
+      "minRatio": 8.63
+    },
+    {
+      "theme": "Frost",
+      "location": "dark",
+      "text": "p",
+      "minRatio": 6.34
+    }
+  ],
+  "checks": [
+    "Pointer parallax responds",
+    "Building focus dims/blurs and segment changes shift background",
+    "Theme switch visibly cross-fades",
+    "Reduced motion uses decoded static WebP",
+    "2D mode uses static wallpaper",
+    "Synthetic tilt updates mobile parallax after opt-in",
+    "2GB device selects mobile static fallback",
+    "No WebGL selects static wallpaper",
+    "Missing wallpaper retains theme gradient"
+  ],
+  "performance": [
+    {
+      "environment": "Desktop Chrome Pixel 7 emulation, 4× CPU throttle, full village + wallpaper",
+      "frames": 276,
+      "durationMs": 5005.8,
+      "averageFps": 55.13604219105837,
+      "p95FrameMs": 33.30000000000018,
+      "staticFallbackAfterSample": false
+    },
+    {
+      "environment": "Ambient wallpaper layers alone, mobile viewport, 4× CPU throttle",
+      "averageFps": 60.53689277028477
+    }
+  ],
+  "accessibility": [
+    {
+      "theme": "Obsidian",
+      "violations": []
+    },
+    {
+      "theme": "Frost",
+      "violations": []
+    }
+  ]
+}
