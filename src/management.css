@@ -1,3 +1,86 @@
 .management-page{min-height:100vh;padding:36px max(20px,calc((100vw - 1040px)/2)) 70px;background:var(--world-base);color:var(--text)}.management-header{display:flex;gap:24px;align-items:center;flex-wrap:wrap}.management-header h1{font-size:26px}.management-header p{font-size:13px}.auth-card{max-width:460px;margin:32px auto}.auth-card form{margin-top:20px}.auth-card .primary{margin-top:20px}.management-tools{margin:24px 0}.management-page .card{margin:18px 0}.case-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.case-grid h3{margin:12px 0}.case-grid .button{margin-top:16px}.case-narrative{white-space:pre-wrap;overflow-wrap:anywhere;margin:24px 0}.case-events{padding-left:24px}.case-events li{padding:12px 0}.case-events small{color:var(--muted)}.management-page dd{margin:0 0 10px;overflow-wrap:anywhere}.management-page dt{font-weight:bold}.management-page .field-label:has(input[type=file]){flex-direction:column;gap:12px}.account-entry{position:absolute;top:94px;left:5%;z-index:9;font-size:11px;min-height:36px;padding:7px 14px}.management-page select{min-width:150px}@media(max-width:760px){.account-entry{position:relative;top:auto;left:auto;margin:132px 6% -110px}.case-grid{grid-template-columns:1fr}.management-page{padding:20px 16px 60px}.management-header{gap:14px}.management-header h1{font-size:22px}}
 .glass.account-entry{position:absolute}
 @media(max-width:760px){.glass.account-entry{position:relative}}
+
+.management-page {padding-inline:max(24px,calc((100vw - 1280px)/2));background:radial-gradient(ellipse at 15% 15%,var(--world-indigo),transparent 60%),radial-gradient(ellipse at 90% 65%,var(--world-teal),transparent 60%),var(--world-base)}
+.management-page *, .management-page *::before, .management-page *::after {box-sizing:border-box}
+.management-header > div {flex:1;min-width:0}
+.management-page h1,.management-page h2,.management-page h3,.management-tools > span,.management-page a,.management-page li {overflow-wrap:anywhere}
+.management-page .input {min-width:0;max-width:100%}
+.account-auth-layout {display:grid;grid-template-columns:minmax(0,1.4fr) minmax(320px,1fr);gap:clamp(24px,5vw,80px);align-items:start;margin:36px 0}
+.account-auth-layout > * {min-width:0}
+.account-auth-layout .auth-card {position:sticky;top:28px;width:100%;max-width:none;margin:24px 0;padding:clamp(24px,3vw,40px);border-radius:32px}
+.auth-card h2 {font-size:28px;line-height:1.3;letter-spacing:-1px;margin-bottom:12px}
+.auth-card > p {font-size:14px;line-height:1.7}
+.auth-card .field-label {font-size:14px;margin-top:22px}
+.auth-card .input {min-height:52px;font-size:16px}
+.auth-card form > .small-text {margin-top:12px;line-height:1.65}
+.auth-card .button {min-height:50px}
+.auth-card > .text-button {width:100%;justify-content:center;text-align:center;white-space:normal;font-size:13px;line-height:1.5;margin-top:12px}
+.journey-heading h2 {font-size:clamp(27px,3vw,40px);line-height:1.25;font-weight:550;letter-spacing:-1.3px;margin:15px 0}
+.journey-heading > p {font-size:14px;max-width:440px}
+.account-scene {height:360px;position:relative;width:100%;min-width:0;margin-top:8px;overflow:hidden;border-radius:28px}
+.account-scene .village-label {font-size:9px!important}
+.account-scene .journey-view-toggle {position:absolute;right:12px;bottom:10px;min-height:36px;padding:7px 12px;font-size:11px;z-index:3}
+.journey-flat {height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;background:radial-gradient(ellipse,#9abbd022,transparent 70%);font-size:14px}
+.flat-path {display:flex;gap:20px}
+.flat-path span {width:36px;height:36px;border:1px solid var(--border);border-radius:50%;display:grid;place-items:center}
+.flat-path [aria-current=step] {background:var(--text);color:var(--world-base)}
+.journey-step-tabs {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px}
+.journey-step-tabs button {min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;font-size:10px;padding:10px 5px;border-radius:20px;line-height:1.4;color:var(--muted);background:var(--surface);box-shadow:inset 0 1px 1px var(--edge-soft)}
+.journey-step-tabs button[aria-pressed=true] {border-color:var(--lens-edge);color:var(--text);background:#a8c5df20}
+.journey-explanation {display:flex;gap:18px;align-items:start;justify-content:space-between;padding:22px 2px;min-height:155px}
+.journey-explanation h3 {font-size:16px;margin-bottom:8px}
+.journey-explanation p {font-size:13px;color:var(--muted);line-height:1.75;max-width:480px}
+.journey-explanation > .row {gap:6px;flex-shrink:0}
+.fir-explainer {padding:18px 20px;border-radius:24px;background:var(--surface);margin-bottom:20px}
+.fir-explainer summary {cursor:pointer;display:flex;gap:10px;align-items:center;min-height:30px;font-size:14px;font-weight:600}
+.fir-explainer summary::after {content:'+';margin-left:auto;font-size:22px;font-weight:400}
+.fir-explainer[open] summary::after {content:'−'}
+.fir-explainer p {font-size:13px;color:var(--muted);margin:14px 0;line-height:1.75}
+.fir-explainer a {display:block;font-size:12px;min-height:36px;padding:7px 0;text-underline-offset:4px}
+.journey-compact {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px 32px;margin:30px 0;align-items:center}
+.journey-compact .journey-heading h2 {font-size:27px}
+.journey-compact .account-scene {grid-column:2;grid-row:1 / 4;height:300px}
+.journey-compact .journey-step-tabs {grid-column:1}
+.journey-compact .journey-explanation {grid-column:1;min-height:0;padding:12px 0}
+.journey-compact .fir-explainer {grid-column:1 / -1;margin:0}
+.management-tools {gap:10px}
+.management-tools > span {flex-basis:100%;font-size:13px}
+.management-page .case-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+.management-page .case-grid > * {min-width:0}
+.management-page > .card {max-width:100%;min-width:0}
+.management-page .card > .row {flex-wrap:wrap}
+.management-page .field-label:has(select) {flex-direction:column;gap:8px}
+.management-page input[type=file] {max-width:100%;white-space:normal;font-size:13px}
+.management-page .case-narrative,.management-page dd,.case-events p {overflow-wrap:anywhere}
+@media(max-width:900px){
+ .account-auth-layout {gap:24px;grid-template-columns:minmax(0,1fr) minmax(300px,1fr)}
+ .account-scene {height:300px}
+ .journey-explanation {flex-wrap:wrap;min-height:0}
+}
+@media(max-width:680px){
+ .management-page {padding:20px 16px 50px}
+ .management-header {gap:16px;align-items:flex-start}
+ .management-header > a {flex-basis:auto}
+ .management-header > div {flex-basis:100%;order:3}
+ .management-header > button {margin-left:auto}
+ .management-header h1 {font-size:24px;line-height:1.3}
+ .account-auth-layout {display:flex;flex-direction:column;gap:24px;margin:24px 0}
+ .account-auth-layout .auth-card {order:-1;position:static;margin:0;width:100%;padding:24px}
+ .account-journey {width:100%}
+ .auth-card h2 {font-size:26px}
+ .journey-heading h2 {font-size:30px}
+ .journey-step-tabs {grid-template-columns:repeat(2,minmax(0,1fr))}
+ .journey-step-tabs button {flex-direction:row;min-height:48px;font-size:11px;gap:8px;padding:10px}
+ .account-scene {height:320px}
+ .journey-compact {display:flex;flex-direction:column;align-items:stretch;gap:12px}
+ .journey-compact .account-scene {height:260px}
+ .journey-compact .journey-heading h2 {font-size:26px}
+ .management-page .case-grid {grid-template-columns:1fr}
+ .management-tools .button {flex:1 1 145px;padding-inline:12px;font-size:12px}
+ .management-page .row.between:has(>label) {align-items:stretch;flex-direction:column}
+ .management-page .row.between > label select {width:100%;margin-top:6px}
+ .management-page .row.between > label {font-size:13px}
+}
+@media(max-width:360px){.management-page{padding-inline:12px}.account-auth-layout .auth-card{padding:20px}.account-scene{height:275px}.journey-step-tabs button{font-size:10px}}
