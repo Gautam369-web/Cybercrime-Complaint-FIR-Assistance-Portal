@@ -7,3 +7,13 @@
 - Use the user's GitHub commit identity: `Gautam Kumar kushwaha <128482757+Gautam369-web@users.noreply.github.com>`. Do not add Codex author or co-author attribution.
 - The user removed `.openai/`. Keep it out of this checkout and GitHub; do not recreate it automatically for deployment. The existing hosted site is `appgprj_6ae357e5895081918d17b48c4c039de8`; do not create a duplicate site because its local manifest is absent.
 - Run and preview locally only. Do not publish further site changes unless the user explicitly requests publication. Continue pushing completed source changes to the designated GitHub repository.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -8,16 +8,29 @@ An independent cybercrime complaint preparation prototype. No complaint is sent 
 
 ## Run
 
-Requires Node 22+.
+Requires Node.js 22 or newer for the local SQLite API.
 
 ```
 npm install
-npm run dev
-npm run build
-npm test
+npm run api
 ```
 
-Browser QA: start Vite on port 5174, then run `node tests/browser-qa.mjs` (Chrome required).
+In a second terminal, run the Next.js app locally:
+
+```
+npm run dev
+```
+
+Open http://127.0.0.1:5174. The API stays on port 5175 and Next.js proxies `/api` requests to it.
+
+To create and run a production build locally:
+
+```
+npm run build
+npm run start
+```
+
+The existing API and browser workflow checks remain available with `npm test` and `node tests/browser-qa.mjs` (Chrome required).
 
 ## Experience and architecture
 
@@ -25,7 +38,7 @@ The primary persona is a stressed victim who needs a clear next action, includin
 
 Town Hall / Home provides language and start controls. Scribe’s Tower / Assistant collects details. Evidence Barn stores temporary files and URLs. Library / Review exposes editable fields, original narrative and a formatted draft. Watchtower / Status distinguishes preparation from official reporting. Guardian’s Hut / Help provides 1930 and official portal links. Fountain Square holds FAQs. The bridge visually connects the journey. The dock duplicates scene navigation for keyboard and non-3D use.
 
-React + TypeScript + Vite; lazy-loaded Three.js scene; i18next locale files; browser memory is the authoritative complaint state. The scene uses actual MIT-licensed `create(params)` factories from the cloned 3dviz-pro-max repository. See src/vendor/3dviz/PROVENANCE.md and LICENSE.
+Next.js 16 App Router + React + TypeScript; client-only rendering preserves browser APIs used by the interactive portal, while Next.js rewrites local `/api` requests to the existing Express API. The Three.js scene is lazy-loaded, with i18next locale files. Guest complaint state remains in browser memory. The scene uses actual MIT-licensed `create(params)` factories from the cloned 3dviz-pro-max repository. See src/vendor/3dviz/PROVENANCE.md and LICENSE.
 
 ## Design tokens
 
