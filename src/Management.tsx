@@ -1,19 +1,742 @@
 import AccountJourney from './AccountJourney';
-import {useEffect,useState} from 'react';
-import {GlassButton,GlassCard,GlassInput} from './components';
-type Case={id:string;title:string;status:string;narrative:string;created:string;details:Record<string,string>;ai?:{state:string;flag?:string;reason?:string;summary?:string;questions?:string[]};events?:{status:string;note:string;created:string}[];files?:{id:string;name:string;size:number}[]};
+import {useEffect,useState,useRef} from 'react';
+import {GlassButton,GlassCard,GlassInput,GlassChip,GlassModal,GlassToast,BottomDock,LanguagePicker} from './components';
+import {ArrowRight,ArrowLeft,ArrowUpRight,ShieldCheck,LockKeyhole,Globe2,Phone,Compass,Sun,Moon,Check,Trash2,FileText,ChevronDown,ExternalLink,Plus,Upload,X,Radio} from 'lucide-react';
+import {useTranslation} from 'react-i18next';
+import {languages} from './i18n';
+
+type Case={id:string;title:string;status:string;narrative:string;created:string;updated:string;details:Record<string,string>;ai?:{state:string;flag?:string;reason?:string;summary?:string;questions?:string[]};ai_consent?:number;owner?:string;events?:{status:string;note:string;created:string}[];files?:{id:string;name:string;size:number}[]};
 type User={id:string;email:string;role:string};
+
+function useMedia(query:string){const [matches,set]=useState(()=>typeof window!=='undefined'&&window.matchMedia(query).matches);useEffect(()=>{const m=window.matchMedia(query);const update=()=>set(m.matches);m.addEventListener('change',update);return()=>m.removeEventListener('change',update);},[query]);return matches;}
+
+async function api(path:string,body?:unknown){
+  try{
+    const response=await fetch('/api'+path,{
+      method:body?'POST':'GET',
+      credentials:'same-origin',
+      headers:body instanceof FormData?{}:{'Content-Type':'application/json'},
+      ...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{})
+    });
+    const text=await response.text();
+    let result:any=null;
+    try{
+      result=text?JSON.parse(text):{};
+    }catch{
+      if(response.status===500||response.status===502||response.status===503||response.status===504){
+        throw Error('Local API server is not running or unreachable. Please start it using "npm run api" in your terminal.');
+      }
+      throw Error(`Unexpected server response (${response.status}): ${text.slice(0,80)}`);
+    }
+    if(!response.ok)throw Error(result.error||result.message||`Request failed (${response.status})`);
+    return result;
+  }catch(e:any){
+    if(e.name==='TypeError'&&e.message?.includes('fetch')){
+      throw Error('Network error: Unable to reach the server. Please check that the API is running.');
+    }
+    throw e;
+  }
+}
+
+const transitions:Record<string,string[]>={pending_review:['approved','changes_requested','rejected'],changes_requested:['pending_review','approved','rejected'],approved:['in_progress','closed'],in_progress:['closed','changes_requested'],rejected:['pending_review'],closed:['pending_review']};
+
 export let portalDraft:Record<string,string>={};
 export function preparePortalDraft(data:Record<string,string>){portalDraft={...data};window.location.hash='account';}
-async function api(path:string,body?:unknown){const response=await fetch('/api'+path,{method:body?'POST':'GET',credentials:'same-origin',headers:body instanceof FormData?{}:{'Content-Type':'application/json'},...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{})});const result=await response.json();if(!response.ok)throw Error(result.error||'Request failed');return result;}
-const label=(s:string)=>s.replaceAll('_',' ');
-const transitions:Record<string,string[]>={pending_review:['approved','changes_requested','rejected'],changes_requested:['pending_review','approved','rejected'],approved:['in_progress','closed'],in_progress:['closed','changes_requested'],rejected:['pending_review'],closed:['pending_review']};
+
 export default function Management(){
- const [user,setUser]=useState<User|null>(null),[checking,setChecking]=useState(true),[register,setRegister]=useState(false),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[items,setItems]=useState<Case[]>([]),[selected,setSelected]=useState<Case|null>(null),[admin,setAdmin]=useState(false),[create,setCreate]=useState(false),[title,setTitle]=useState(portalDraft.crime||''),[narrative,setNarrative]=useState(portalDraft.narrative||''),[consent,setConsent]=useState(false),[aiConsent,setAiConsent]=useState(false),[note,setNote]=useState(''),[status,setStatus]=useState(''),[filter,setFilter]=useState('all');
- async function run(work:()=>Promise<void>){setBusy(true);setError('');setMessage('');try{await work();}catch(e){setError(e instanceof Error?e.message:'Connection failed');}finally{setBusy(false);}}
- async function load(isAdmin=admin){setItems(await api(isAdmin?'/admin/complaints':'/complaints'));}
- async function open(id:string){setSelected(await api('/complaints/'+id));setNote('');setStatus('');}
- useEffect(()=>{api('/me').then(u=>{setUser(u);return api('/complaints');}).then(setItems).catch(e=>{if(e.message!=='Please sign in')setError('Start the local API to use accounts and tracking.');}).finally(()=>setChecking(false));},[]);
- useEffect(()=>{if(!user)return;const timer=setInterval(()=>{api(admin?'/admin/complaints':'/complaints').then(setItems).catch(()=>{});if(selected)api('/complaints/'+selected.id).then(setSelected).catch(()=>{});},15000);return()=>clearInterval(timer);},[user,admin,selected?.id]);
- return <main className="management-page"><header className="management-header"><a className="glass button" href="#home">← Back to village</a><div><h1>Complaint management</h1><p className="muted">Private accounts · Human review · Application tracking</p></div>{user&&<GlassButton disabled={busy} onClick={()=>run(async()=>{await api('/logout',{});setUser(null);setItems([]);setSelected(null);setAdmin(false);setCreate(false);setPassword('');})}>Sign out</GlassButton>}</header><p className="glass notice">Prepare your complaint, send it for human review and track the updates from your account.</p>{error&&<p className="glass notice error-text" role="alert">{error}</p>}{message&&<p className="glass notice" role="status">{message}</p>}{checking?<p role="status">Checking your session…</p>:!user?<div className="account-auth-layout"><AccountJourney/><GlassCard className="auth-card"><h2>{register?'Create your account':'Welcome back'}</h2><p className="muted">Keep your complaints private and follow their review progress.</p><form onSubmit={e=>{e.preventDefault();run(async()=>{if(register){await api('/register',{email,password});setMessage('Account created. You can now sign in.');setRegister(false);setPassword('');}else{const u=await api('/login',{email,password});setUser(u);setPassword('');await load(false);}});}}><label className="field-label" htmlFor="account-email">Email</label><GlassInput id="account-email" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)}/><label className="field-label" htmlFor="account-password">Password</label><GlassInput id="account-password" type="password" minLength={12} maxLength={128} autoComplete={register?'new-password':'current-password'} required value={password} onChange={e=>setPassword(e.target.value)}/><p className="small-text muted">At least 12 characters. Local accounts do not yet verify email ownership.</p><GlassButton className="primary full-width" disabled={busy} type="submit">{busy?'Please wait…':register?'Create account':'Sign in'}</GlassButton></form><button className="text-button" onClick={()=>{setRegister(!register);setError('');}}>{register?'Already registered? Sign in':'New here? Create an account'}</button></GlassCard></div>:<><AccountJourney compact/><div className="row wrap management-tools"><span className="muted">{user.email} · {user.role}</span><GlassButton onClick={()=>run(async()=>{setAdmin(false);setSelected(null);setCreate(false);await load(false);})}>My applications</GlassButton><GlassButton className="primary" onClick={()=>{setSelected(null);setCreate(true);setAdmin(false);}}>New complaint</GlassButton>{user.role==='admin'&&<GlassButton onClick={()=>run(async()=>{setAdmin(true);setSelected(null);setCreate(false);await load(true);})}>Admin review queue</GlassButton>}<GlassButton disabled={busy} onClick={()=>run(()=>load())}>Refresh</GlassButton></div>{create?<GlassCard><h2>Submit for human review</h2><p className="muted">Your original account is preserved. No AI approval or automatic rejection takes place.</p><form onSubmit={e=>{e.preventDefault();run(async()=>{const result=await api('/complaints',{title,narrative,details:portalDraft,consent,aiConsent});portalDraft={};setCreate(false);setTitle('');setNarrative('');setConsent(false);setAiConsent(false);await load(false);await open(result.id);setMessage('Submitted for human review. Add supporting files below.');});}}><label className="field-label" htmlFor="case-title">Complaint title / type</label><GlassInput id="case-title" required minLength={3} maxLength={160} value={title} onChange={e=>setTitle(e.target.value)}/><label className="field-label" htmlFor="case-narrative">What happened?</label><textarea className="glass input" id="case-narrative" required minLength={20} maxLength={10000} rows={7} value={narrative} onChange={e=>setNarrative(e.target.value)}/><label className="check-label"><input type="checkbox" required checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I agree to store this complaint on this local portal and share it with its administrators. Never include OTPs, PINs, passwords or CVVs.</span></label><label className="check-label"><input type="checkbox" checked={aiConsent} onChange={e=>setAiConsent(e.target.checked)}/><span>Optional: allow my narrative to be sent to Google Gemini for moderation suggestions and a summary when configured. Human review is available without this consent.</span></label><GlassButton className="primary" disabled={busy||!consent} type="submit">Submit to portal</GlassButton></form></GlassCard>:selected?<GlassCard><div className="row between"><h2>{selected.title}</h2><span className="glass chip">{label(selected.status)}</span></div><p className="small-text muted">Application reference: {selected.id}</p><p className="case-narrative">{selected.narrative}</p>{Object.keys(selected.details||{}).length>0&&<details><summary>Submitted details</summary><dl>{Object.entries(selected.details).map(([k,v])=><div key={k}><dt>{label(k)}</dt><dd>{String(v)}</dd></div>)}</dl></details>}<h3>Evidence · Private downloads</h3><p className="small-text muted">Files are not scanned for malware or sent to AI. Download only if you trust the source.</p><ul>{selected.files?.map(f=><li key={f.id}><a href={`/api/complaints/${selected.id}/files/${f.id}`}>{f.name}</a> · {Math.ceil(f.size/1024)} KB</li>)}</ul>{['pending_review','changes_requested'].includes(selected.status)&&<label className="field-label">Add PNG, JPEG or PDF · 5 MB each, up to 10<input disabled={busy} type="file" accept=".png,.jpg,.jpeg,.pdf" onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)run(async()=>{const form=new FormData();form.append('file',file);await api(`/complaints/${selected.id}/files`,form);await open(selected.id);});}}/></label>}<h3>Activity and updates</h3><ol className="case-events">{selected.events?.map((event,i)=><li key={i}><strong>{label(event.status)}</strong><p>{event.note}</p><small>{new Date(event.created).toLocaleString()}</small></li>)}</ol>{user.role==='admin'&&<section className="glass notice"><h3>AI assistance · Advisory only</h3><p>{selected.ai?.reason||'Not screened. Human review can proceed.'}</p>{selected.ai?.flag&&<p>Flag: {label(selected.ai.flag)}</p>}{selected.ai?.summary&&<p>{selected.ai.summary}</p>}<ul>{selected.ai?.questions?.map(q=><li key={q}>{q}</li>)}</ul><GlassButton disabled={busy} onClick={()=>run(async()=>{await api(`/admin/complaints/${selected.id}/screen`,{});await open(selected.id);})}>Screen with Gemini</GlassButton></section>}<label className="field-label" htmlFor="case-note">{user.role==='admin'?'Decision reason or update (visible to applicant)':'Reply to the review team'}</label><textarea id="case-note" className="glass input" rows={3} minLength={5} maxLength={2000} value={note} onChange={e=>setNote(e.target.value)}/>{user.role==='admin'&&<label className="field-label">Next status<select className="glass input" value={status} onChange={e=>setStatus(e.target.value)}><option value="">Choose a decision</option>{(transitions[selected.status]||[]).map(s=><option key={s} value={s}>{label(s)}</option>)}</select></label>}<div className="row wrap"><GlassButton disabled={busy||note.trim().length<5} onClick={()=>run(async()=>{await api(`/complaints/${selected.id}/reply`,{note});await open(selected.id);})}>Send message</GlassButton>{user.role==='admin'&&<GlassButton className="primary" disabled={busy||!status||note.trim().length<5} onClick={()=>run(async()=>{await api(`/admin/complaints/${selected.id}/status`,{status,note});await open(selected.id);await load();})}>Save admin decision</GlassButton>}</div></GlassCard>:<><div className="row between"><h2>{admin?'Admin review queue':'My applications'}</h2><label>Filter <select className="glass input" value={filter} onChange={e=>setFilter(e.target.value)}>{['all',...Object.keys(transitions)].map(s=><option key={s} value={s}>{label(s)}</option>)}</select></label></div><div className="case-grid">{items.filter(c=>filter==='all'||c.status===filter).map(c=><GlassCard key={c.id}><span className="small-text muted">{new Date(c.created).toLocaleDateString()}</span><h3>{c.title}</h3><p>{label(c.status)}</p>{admin&&c.ai?.flag&&<p className="small-text">AI suggestion: {label(c.ai.flag)}</p>}<GlassButton onClick={()=>run(()=>open(c.id))}>View application</GlassButton></GlassCard>)}</div>{items.filter(c=>filter==='all'||c.status===filter).length===0&&<p className="glass notice">No applications in this view.</p>}<p className="small-text muted">Latest 100 applications. Refreshes every 15 seconds.</p></>}</>}</main>;
+  const {t,i18n}=useTranslation();
+  const [user,setUser]=useState<User|null>(null);
+  const [checking,setChecking]=useState(true);
+  const [authStep,setAuthStep]=useState<'login'|'register'|'verify-otp'>('login');
+  const [email,setEmail]=useState('');
+  const [password,setPassword]=useState('');
+  const [otp,setOtp]=useState('');
+  const [error,setError]=useState('');
+  const [message,setMessage]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [items,setItems]=useState<Case[]>([]);
+  const [selected,setSelected]=useState<Case|null>(null);
+  const [admin,setAdmin]=useState(false);
+  const [view,setView]=useState<'dashboard'|'create-complaint'|'complaint-detail'>('dashboard');
+  const [filter,setFilter]=useState('all');
+  const [note,setNote]=useState('');
+  const [status,setStatus]=useState('');
+
+  // Complaint submission form state
+  const [title,setTitle]=useState('');
+  const [narrative,setNarrative]=useState('');
+  const [consent,setConsent]=useState(false);
+  const [aiConsent,setAiConsent]=useState(false);
+
+  // Theme & UI state
+  const [theme,setTheme]=useState<'obsidian'|'frost'>('obsidian');
+  const [contrast,setContrast]=useState(false);
+  const [large,setLarge]=useState(false);
+  const [motion,setMotion]=useState(false);
+  const [modal,setModal]=useState('');
+  const [toast,setToast]=useState('');
+  const reduced=useMedia('(prefers-reduced-motion: reduce)')||motion;
+
+  // Sync draft when opened
+  useEffect(()=>{
+    if(portalDraft.crime) setTitle(portalDraft.crime);
+    if(portalDraft.narrative) setNarrative(portalDraft.narrative);
+  },[]);
+
+  async function load(isAdmin=admin){
+    try{
+      const data=await api(isAdmin?'/admin/complaints':'/complaints');
+      setItems(data);
+    }catch(e){
+      // Silently handle if unauthenticated
+    }
+  }
+
+  async function open(id:string){
+    try{
+      const c=await api('/complaints/'+id);
+      setSelected(c);
+      setNote('');
+      setStatus('');
+      setView('complaint-detail');
+    }catch(e){
+      setError(e instanceof Error?e.message:'Failed to load complaint');
+    }
+  }
+
+  useEffect(()=>{
+    api('/me').then(u=>{
+      setUser(u);
+      return api('/complaints');
+    }).then(setItems).catch(e=>{
+      if(e.message!=='Please sign in')setError('Start the local API to use accounts and tracking.');
+    }).finally(()=>setChecking(false));
+  },[]);
+
+  useEffect(()=>{
+    if(!user)return;
+    const timer=setInterval(()=>{
+      api(admin?'/admin/complaints':'/complaints').then(setItems).catch(()=>{});
+      if(selected)api('/complaints/'+selected.id).then(setSelected).catch(()=>{});
+    },15000);
+    return()=>clearInterval(timer);
+  },[user,admin,selected?.id]);
+
+  useEffect(()=>{
+    document.documentElement.dataset.theme=theme;
+    document.documentElement.dataset.contrast=String(contrast);
+    document.documentElement.dataset.large=String(large);
+    document.documentElement.dataset.motion=String(reduced);
+    document.documentElement.lang=i18n.language;
+    document.documentElement.dir=i18n.dir();
+  },[theme,contrast,large,reduced,i18n.language]);
+
+  useEffect(()=>{
+    if(!toast)return;
+    const timer=setTimeout(()=>setToast(''),5000);
+    return()=>clearTimeout(timer);
+  },[toast]);
+
+  // Auth handlers
+  async function handleRegister(){
+    if(typeof email!=='string'||!/^\S+@\S+\.\S+$/.test(email)||email.length>254||typeof password!=='string'||password.length<12||password.length>128){
+      setError('Use a valid email and a password of 12–128 characters.');
+      return;
+    }
+    setBusy(true);setError('');setMessage('');
+    try{
+      const res=await api('/register',{email,password});
+      if(res.requiresOtp){
+        setMessage(res.message||'Please check your email for the verification code.');
+        setAuthStep('verify-otp');
+        setOtp('');
+      } else {
+        setMessage('Account created. You can now sign in.');
+        setAuthStep('login');
+      }
+    }catch(e){setError(e instanceof Error?e.message:'Registration failed');}
+    finally{setBusy(false);}
+  }
+
+  async function handleResendOtp(){
+    if(!email)return;
+    setBusy(true);setError('');
+    try{
+      await api('/send-otp',{email});
+      setMessage('Verification code sent. Check your email.');
+    }catch(e){setError(e instanceof Error?e.message:'Failed to send code');}
+    finally{setBusy(false);}
+  }
+
+  async function handleVerifyOtp(){
+    if(!otp||otp.length!==6){
+      setError('Enter the 6-digit code from your email.');
+      return;
+    }
+    setBusy(true);setError('');
+    try{
+      await api('/verify-otp',{email,otp});
+      setMessage('Email verified successfully. You can now sign in.');
+      setAuthStep('login');
+      setOtp('');
+      setPassword('');
+    }catch(e){setError(e instanceof Error?e.message:'Verification failed');}
+    finally{setBusy(false);}
+  }
+
+  async function handleLogin(){
+    if(typeof email!=='string'||typeof password!=='string'||password.length>128){
+      setError('Invalid credentials');
+      return;
+    }
+    setBusy(true);setError('');setMessage('');
+    try{
+      const u=await api('/login',{email,password});
+      setUser(u);
+      setPassword('');
+      await load(false);
+    }catch(e){setError(e instanceof Error?e.message:'Login failed');}
+    finally{setBusy(false);}
+  }
+
+  async function handleLogout(){
+    try{
+      await api('/logout',{});
+    }catch{}
+    setUser(null);
+    setItems([]);
+    setSelected(null);
+    setAdmin(false);
+    setView('dashboard');
+    setAuthStep('login');
+    setEmail('');
+    setPassword('');
+  }
+
+  // Create complaint handler
+  async function handleSubmitComplaint(){
+    if(!title.trim()||!narrative.trim()){
+      setError('Please provide a complaint title and narrative.');
+      return;
+    }
+    if(!consent){
+      setError('Please provide consent to submit this complaint.');
+      return;
+    }
+    setBusy(true);setError('');setMessage('');
+    try{
+      const res=await api('/complaints',{
+        title:title.trim(),
+        narrative:narrative.trim(),
+        details:portalDraft,
+        consent:true,
+        aiConsent
+      });
+      setMessage('Submitted for human review. Add supporting files below.');
+      setTitle('');
+      setNarrative('');
+      setConsent(false);
+      setAiConsent(false);
+      portalDraft={};
+      await open(res.id);
+      await load(admin);
+    }catch(e){
+      setError(e instanceof Error?e.message:'Submission failed');
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  // File upload handler
+  async function handleFileUpload(files:FileList|null){
+    if(!selected||!files||files.length===0)return;
+    const file=files[0];
+    if(file.size>5*1024*1024){
+      setError('File must be 5 MB or smaller.');
+      return;
+    }
+    if(!['image/png','image/jpeg','application/pdf'].includes(file.type)){
+      setError('Only PNG, JPEG and PDF files are accepted.');
+      return;
+    }
+    setBusy(true);setError('');
+    try{
+      const form=new FormData();
+      form.append('file',file);
+      await api(`/complaints/${selected.id}/files`,form);
+      const updated=await api('/complaints/'+selected.id);
+      setSelected(updated);
+      setToast('File attached successfully.');
+      await load(admin);
+    }catch(e){
+      setError(e instanceof Error?e.message:'Upload failed');
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  // Admin decision handler
+  async function handleAdminDecision(){
+    if(!selected||!status||note.trim().length<5){
+      setError('Select a status and provide a reason of at least 5 characters.');
+      return;
+    }
+    setBusy(true);setError('');
+    try{
+      await api(`/admin/complaints/${selected.id}/status`,{status,note:note.trim()});
+      const reason=note.trim();
+      setNote('');
+      setStatus('');
+      const updated=await api('/complaints/'+selected.id);
+      setSelected(updated);
+      setMessage(reason);
+      await load(true);
+    }catch(e){
+      setError(e instanceof Error?e.message:'Admin update failed');
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  // Reply handler
+  async function handleReply(){
+    if(!selected||note.trim().length<5){
+      setError('Message must be at least 5 characters.');
+      return;
+    }
+    setBusy(true);setError('');
+    try{
+      await api(`/complaints/${selected.id}/reply`,{note:note.trim()});
+      setNote('');
+      const updated=await api('/complaints/'+selected.id);
+      setSelected(updated);
+      setToast('Reply sent to review team.');
+      await load(admin);
+    }catch(e){
+      setError(e instanceof Error?e.message:'Reply failed');
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  const navigateToVillage=(hash:string)=>{
+    window.location.hash=hash;
+  };
+
+  if(checking){
+    return (
+      <main className="management-page">
+        <div className="ambient ambient-one"/><div className="ambient ambient-two"/>
+        <p role="status" className="glass notice" style={{maxWidth:400,margin:'auto',textAlign:'center'}}>Checking your session…</p>
+      </main>
+    );
+  }
+
+  if(!user){
+    return (
+      <main className="management-page">
+        <div className="ambient ambient-one"/><div className="ambient ambient-two"/>
+        
+        {/* Top Header Bar */}
+        <div className="management-top-bar">
+          <div className="brand-group">
+            <div className="brand brand-wrap" aria-label="Village of Justice">
+              <span className="brand-mark"><ShieldCheck size={24}/></span>
+              <div>the village of <strong>justice</strong><span>A little guidance. A way forward.</span></div>
+            </div>
+            <GlassButton className="back-village-btn" onClick={()=>navigateToVillage('')}>
+              <Compass size={16}/> Back to village
+            </GlassButton>
+          </div>
+
+          <div className="top-actions-group">
+            <div className="appearance-picker glass" aria-label="Appearance">
+              <button aria-pressed={theme==='frost'} onClick={()=>setTheme('frost')}><Sun size={16}/>Frost</button>
+              <button aria-pressed={theme==='obsidian'} onClick={()=>setTheme('obsidian')}><Moon size={16}/>Obsidian</button>
+            </div>
+            <GlassButton className="quick-exit" onClick={()=>window.location.replace('https://www.google.com')}>
+              Exit quickly <ArrowUpRight size={16}/>
+            </GlassButton>
+          </div>
+        </div>
+        
+        <div className="account-auth-layout">
+          <AccountJourney compact/>
+          <GlassCard className="auth-card">
+            {authStep==='register' && (
+              <>
+                <h2>Create your account</h2>
+                <p className="muted">You'll receive a verification code if SMTP is configured.</p>
+                <form onSubmit={e=>{e.preventDefault();handleRegister();}}>
+                  <label className="field-label" htmlFor="reg-email">Email</label>
+                  <GlassInput id="reg-email" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)}/>
+                  <label className="field-label" htmlFor="reg-password">Password</label>
+                  <GlassInput id="reg-password" type="password" minLength={12} maxLength={128} autoComplete="new-password" required value={password} onChange={e=>setPassword(e.target.value)}/>
+                  <p className="small-text muted">At least 12 characters.</p>
+                  <GlassButton className="primary full-width" disabled={busy} type="submit">{busy?'Creating…':'Create account'}</GlassButton>
+                </form>
+                <p className="small-text muted" style={{marginTop:12}}><button className="text-button" onClick={()=>{setAuthStep('login');setError('');setMessage('');}}>Already registered? Sign in</button></p>
+              </>
+            )}
+            {authStep==='verify-otp' && (
+              <>
+                <h2>Verify your email</h2>
+                <p className="muted">We sent a 6-digit code to <strong>{email}</strong></p>
+                <form onSubmit={e=>{e.preventDefault();handleVerifyOtp();}}>
+                  <label className="field-label" htmlFor="otp-input">Verification code</label>
+                  <GlassInput id="otp-input" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="one-time-code" required value={otp} onChange={e=>setOtp(e.target.value)} style={{letterSpacing:'0.5em',textAlign:'center',fontSize:'1.5em'}}/>
+                  <div className="row between" style={{marginTop:8}}>
+                    <GlassButton className="primary full-width" disabled={busy} type="submit">{busy?'Verifying…':'Verify code'}</GlassButton>
+                  </div>
+                </form>
+                <p className="small-text muted" style={{marginTop:12}}><button className="text-button" disabled={busy} onClick={handleResendOtp}>Resend code</button></p>
+                <p className="small-text muted" style={{marginTop:8}}><button className="text-button" onClick={()=>{setAuthStep('login');setOtp('');}}>Back to sign in</button></p>
+              </>
+            )}
+            {authStep==='login' && (
+              <>
+                <h2>Welcome back</h2>
+                <p className="muted">Sign in to access your complaints.</p>
+                <form onSubmit={e=>{e.preventDefault();handleLogin();}}>
+                  <label className="field-label" htmlFor="login-email">Email</label>
+                  <GlassInput id="login-email" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)}/>
+                  <label className="field-label" htmlFor="login-password">Password</label>
+                  <GlassInput id="login-password" type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)}/>
+                  <GlassButton className="primary full-width" disabled={busy} type="submit">{busy?'Signing in…':'Sign in'}</GlassButton>
+                </form>
+                <p className="small-text muted" style={{marginTop:12}}><button className="text-button" onClick={()=>{setAuthStep('register');setPassword('');setError('');setMessage('');}}>New here? Create an account</button></p>
+              </>
+            )}
+          </GlassCard>
+        </div>
+        {error&&<p className="glass notice error-text" role="alert" style={{maxWidth:480,margin:'24px auto 0'}}>{error}</p>}
+        {message&&<p className="glass notice" role="status" style={{maxWidth:480,margin:'12px auto 0'}}>{message}</p>}
+        <div className="footer-note" style={{maxWidth:480,margin:'32px auto 0',textAlign:'center'}}><ShieldCheck size={15}/><span>A preparation assistant, not legal advice or an official government service.</span></div>
+      </main>
+    );
+  }
+
+  const filteredItems=items.filter(c=>filter==='all'||c.status===filter);
+
+  return (
+    <main className="management-page">
+      <div className="ambient ambient-one"/><div className="ambient ambient-two"/>
+      
+      {/* Top Header Bar (Flexbox - zero collisions) */}
+      <div className="management-top-bar">
+        <div className="brand-group">
+          <div className="brand brand-wrap" aria-label="Village of Justice">
+            <span className="brand-mark"><ShieldCheck size={24}/></span>
+            <div>the village of <strong>justice</strong><span>A little guidance. A way forward.</span></div>
+          </div>
+          <GlassButton className="back-village-btn" onClick={()=>navigateToVillage('')}>
+            <Compass size={16}/> Back to village
+          </GlassButton>
+        </div>
+
+        <div className="top-actions-group">
+          <GlassButton className="sign-out-btn" disabled={busy} onClick={handleLogout}>
+            Sign out
+          </GlassButton>
+          <div className="appearance-picker glass" aria-label="Appearance">
+            <button aria-pressed={theme==='frost'} onClick={()=>setTheme('frost')}><Sun size={16}/>Frost</button>
+            <button aria-pressed={theme==='obsidian'} onClick={()=>setTheme('obsidian')}><Moon size={16}/>Obsidian</button>
+          </div>
+          <GlassButton className="quick-exit" onClick={()=>window.location.replace('https://www.google.com')}>
+            Exit quickly <ArrowUpRight size={16}/>
+          </GlassButton>
+        </div>
+      </div>
+      
+      {/* Hero Card */}
+      <header className="management-hero-card glass card">
+        <div className="hero-info">
+          <div className="row" style={{gap:10,marginBottom:6}}>
+            <span className="eyebrow small"><ShieldCheck size={14}/> PRIVATE & SECURE PORTAL</span>
+            {user.role==='admin' && <span className="admin-chip">Administrator</span>}
+          </div>
+          <h1>{admin ? 'Admin review queue' : 'Complaint management'}</h1>
+          <p className="muted">Private accounts · Human review · Application tracking</p>
+        </div>
+        <div className="hero-actions">
+          {user.role==='admin' && (
+            <GlassButton aria-pressed={admin && view==='dashboard'} onClick={()=>{
+              const next=!admin;
+              setAdmin(next);
+              setView('dashboard');
+              setSelected(null);
+              load(next);
+            }}>
+              <Radio size={16}/> {admin ? 'Your complaints view' : 'Admin review queue'}
+            </GlassButton>
+          )}
+        </div>
+      </header>
+
+      {/* Notifications */}
+      {error && (
+        <div className="glass alert-banner error" role="alert">
+          <span>{error}</span>
+          <button className="icon-close" onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button>
+        </div>
+      )}
+      {message && (
+        <div className="glass alert-banner success" role="status">
+          <span>{message}</span>
+          <button className="icon-close" onClick={()=>setMessage('')} aria-label="Dismiss message"><X size={16}/></button>
+        </div>
+      )}
+      {toast && <GlassToast>{toast}</GlassToast>}
+
+      {/* Create Complaint View */}
+      {view==='create-complaint' && (
+        <GlassCard style={{maxWidth:850,margin:'0 auto 24px'}}>
+          <div className="row between" style={{marginBottom:18}}>
+            <h2>New complaint</h2>
+            <GlassButton onClick={()=>setView('dashboard')}><ArrowLeft size={16}/> Back</GlassButton>
+          </div>
+          <form onSubmit={e=>{e.preventDefault();handleSubmitComplaint();}}>
+            <label className="field-label" htmlFor="comp-title">Complaint title / type</label>
+            <GlassInput id="comp-title" value={title} onChange={e=>setTitle(e.target.value)} required placeholder="e.g. Synthetic UI verification, UPI / online fraud, Phishing"/>
+            
+            <label className="field-label" htmlFor="comp-narrative" style={{marginTop:16}}>What happened?</label>
+            <textarea id="comp-narrative" className="glass input" value={narrative} onChange={e=>setNarrative(e.target.value)} rows={5} required placeholder="Describe what happened in detail..."/>
+            
+            <label className="check-label" style={{marginTop:18}}>
+              <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>
+              <span>I consent to submit this complaint for human review and processing.</span>
+            </label>
+
+            <label className="check-label" style={{marginTop:10}}>
+              <input type="checkbox" checked={aiConsent} onChange={e=>setAiConsent(e.target.checked)}/>
+              <span>Optional: Allow advisory AI screening (plain text narrative only).</span>
+            </label>
+
+            <div className="row between" style={{marginTop:24}}>
+              <GlassButton type="button" onClick={()=>setView('dashboard')}><ArrowLeft size={14}/> Cancel</GlassButton>
+              <GlassButton className="primary" type="submit" disabled={busy||!consent||!title.trim()||!narrative.trim()}>{busy?'Submitting…':'Submit to portal'}</GlassButton>
+            </div>
+          </form>
+        </GlassCard>
+      )}
+
+      {/* Complaint Detail View */}
+      {view==='complaint-detail' && selected && (
+        <GlassCard style={{maxWidth:950,margin:'0 auto 24px'}}>
+          <div className="row between" style={{marginBottom:18,flexWrap:'wrap',gap:12}}>
+            <h2>{selected.title}</h2>
+            <GlassButton onClick={()=>{setView('dashboard');setSelected(null);}}> <ArrowLeft size={16}/> Back to dashboard</GlassButton>
+          </div>
+          <div className="row gap" style={{gap:14,flexWrap:'wrap',marginBottom:20}}>
+            <span className={`status-badge status-${selected.status}`}>
+              <span className="status-dot"/>
+              {selected.status.replace('_',' ')}
+            </span>
+            <span className="muted small-text">Created: {new Date(selected.created).toLocaleString()}</span>
+            <span className="muted small-text">Updated: {new Date(selected.updated).toLocaleString()}</span>
+          </div>
+
+          <details className="glass" open style={{padding:18,borderRadius:18,marginBottom:16}}>
+            <summary style={{fontWeight:600,cursor:'pointer'}}>Original narrative</summary>
+            <p style={{whiteSpace:'pre-wrap',marginTop:10,lineHeight:1.7}}>{selected.narrative}</p>
+          </details>
+
+          {selected.details && Object.keys(selected.details).length>0 && (
+            <details className="glass" style={{padding:18,borderRadius:18,marginBottom:16}}>
+              <summary style={{fontWeight:600,cursor:'pointer'}}>Details</summary>
+              <pre style={{marginTop:10,overflowX:'auto',fontSize:13}}>{JSON.stringify(selected.details,null,2)}</pre>
+            </details>
+          )}
+
+          <details className="glass" open style={{padding:18,borderRadius:18,marginBottom:16}}>
+            <summary style={{fontWeight:600,cursor:'pointer'}}>Evidence files</summary>
+            <div style={{marginTop:14}}>
+              {selected.files&&selected.files.length>0?(
+                <ul className="evidence-list" style={{display:'flex',flexDirection:'column',gap:8,listStyle:'none',padding:0}}>
+                  {selected.files.map(f=>(
+                    <li key={f.id} className="glass" style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 18px',borderRadius:14}}>
+                      <div className="evidence-info">
+                        <strong>{f.name}</strong> <span className="muted small-text">({(f.size/1024).toFixed(0)} KB)</span>
+                      </div>
+                      <a className="glass button" href={`/api/complaints/${selected.id}/files/${f.id}`} download style={{padding:'6px 14px',fontSize:12}}>Download</a>
+                    </li>
+                  ))}
+                </ul>
+              ):(
+                <p className="muted small-text">No files uploaded yet.</p>
+              )}
+              <div style={{marginTop:18}}>
+                <label className="field-label" htmlFor="upload-supporting-file">Add supporting files (PNG, JPEG, PDF up to 5 MB)</label>
+                <GlassInput id="upload-supporting-file" type="file" accept=".png,.jpeg,.jpg,.pdf" onChange={e=>handleFileUpload(e.target.files)}/>
+              </div>
+            </div>
+          </details>
+
+          <details className="glass" open style={{padding:18,borderRadius:18,marginBottom:16}}>
+            <summary style={{fontWeight:600,cursor:'pointer'}}>Timeline</summary>
+            <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:10}}>
+              {selected.events?.map((e,i)=>(
+                <div key={i} className="timeline-event glass">
+                  <div className="event-header">
+                    <span className="event-status">{e.status.replace('_',' ')}</span>
+                    <span className="event-time muted">{new Date(e.created).toLocaleString()}</span>
+                  </div>
+                  <p className="event-note" style={{marginTop:6,fontSize:13,lineHeight:1.6}}>{e.note}</p>
+                </div>
+              ))}
+            </div>
+          </details>
+
+          {/* Admin Decision Section */}
+          {user.role==='admin' && (
+            <div className="glass" style={{marginTop:18,padding:20,borderRadius:18}}>
+              <h4>Admin decision</h4>
+              <div style={{marginTop:10}}>
+                <label className="field-label" htmlFor="admin-decision-reason" style={{display:'block',marginBottom:6}}>Decision reason or update (visible to applicant)</label>
+                <textarea id="admin-decision-reason" value={note} onChange={e=>setNote(e.target.value)} className="glass input" rows={3} style={{width:'100%'}}/>
+                
+                <div style={{marginTop:14}}>
+                  <label className="field-label" htmlFor="admin-next-status" style={{display:'block',marginBottom:6}}>Next status</label>
+                  <select id="admin-next-status" value={status} onChange={e=>setStatus(e.target.value)} className="glass input" style={{width:'auto',minWidth:220}}>
+                    <option value="">Select…</option>
+                    {(transitions[selected.status]||[]).map(s=><option key={s} value={s}>{s.replace('_',' ')}</option>)}
+                  </select>
+                </div>
+
+                <div style={{marginTop:16}}>
+                  <GlassButton className="primary" disabled={!status||note.trim().length<5||busy} onClick={handleAdminDecision}>Save admin decision</GlassButton>
+                </div>
+              </div>
+
+              {selected.ai_consent ? (
+                <div style={{marginTop:18}}>
+                  <GlassButton style={{marginTop:8}} onClick={async()=>{
+                    try{
+                      const ai=await api('/admin/complaints/'+selected.id+'/screen');
+                      alert(JSON.stringify(ai,null,2));
+                    }catch(e){
+                      setError(e instanceof Error?e.message:'Screening failed');
+                    }
+                  }}>Run AI screening</GlassButton>
+                </div>
+              ):null}
+            </div>
+          )}
+
+          {/* User Reply Section */}
+          {user.role!=='admin' && selected.owner===user.id && (
+            <div className="glass" style={{marginTop:18,padding:20,borderRadius:18}}>
+              <h4>Reply to review team</h4>
+              <label className="field-label" htmlFor="user-reply-text" style={{display:'block',marginTop:8}}>Message (5–2000 chars)</label>
+              <textarea id="user-reply-text" value={note} onChange={e=>setNote(e.target.value)} className="glass input" rows={3} style={{width:'100%',marginTop:4}}/>
+              <GlassButton className="primary" style={{marginTop:12}} disabled={note.trim().length<5||busy} onClick={handleReply}>Send reply</GlassButton>
+            </div>
+          )}
+        </GlassCard>
+      )}
+
+      {/* Dashboard Complaints Table */}
+      {view==='dashboard' && (
+        <div className="glass complaints-card">
+          <div className="card-header-row">
+            <div>
+              <h2>{admin ? 'Admin review queue' : 'Your complaints'}</h2>
+              <p className="muted small-text">{admin ? 'All complaints across accounts. Select one to review.' : 'Click any row to view details, timeline, and reply.'}</p>
+            </div>
+            {!admin && (
+              <GlassButton className="primary" onClick={()=>setView('create-complaint')}><Plus size={16}/> New complaint</GlassButton>
+            )}
+          </div>
+          
+          <div className="filter-chips-row">
+            {['all','pending_review','changes_requested','approved','in_progress','closed','rejected'].map(f=>
+              <GlassChip key={f} aria-pressed={filter===f} onClick={()=>setFilter(f)}>{f==='all'?'All':f.replace('_',' ')}</GlassChip>
+            )}
+          </div>
+
+          {items.length===0?(
+            <div style={{textAlign:'center',padding:'48px 20px'}}>
+              <FileText size={42} style={{opacity:0.35,marginBottom:12}}/>
+              <p className="muted" style={{fontSize:15}}>{admin?'The review queue is currently clear.':'No complaints registered yet. Create your first complaint to get started.'}</p>
+              {!admin && (
+                <GlassButton className="primary" style={{marginTop:16}} onClick={()=>setView('create-complaint')}>
+                  <Plus size={16}/> Start first complaint
+                </GlassButton>
+              )}
+            </div>
+          ):(
+            <div className="table-wrap">
+              <table className="complaints-table">
+                <thead>
+                  <tr>
+                    <th>Title & Reference</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Updated</th>
+                    <th style={{textAlign:'right'}}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map(c=>(
+                    <tr key={c.id} onClick={()=>open(c.id)} className="complaint-row">
+                      <td data-label="Title">
+                        <div className="title-cell">
+                          <span className="case-icon"><FileText size={18}/></span>
+                          <div>
+                            <strong className="case-title">{c.title}</strong>
+                            <small className="case-id">ID: {c.id.slice(0,8).toUpperCase()}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Status">
+                        <span className={`status-badge status-${c.status}`}>
+                          <span className="status-dot"/>
+                          {c.status.replace('_',' ')}
+                        </span>
+                      </td>
+                      <td data-label="Created">
+                        <span className="date-text">{new Date(c.created).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}</span>
+                      </td>
+                      <td data-label="Updated">
+                        <span className="date-text">{new Date(c.updated).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})}</span>
+                      </td>
+                      <td data-label="Action" style={{textAlign:'right'}}>
+                        <GlassButton className="table-action-btn" onClick={e=>{e.stopPropagation();open(c.id);}}>
+                          {admin ? 'View application' : 'View details'} <ArrowRight size={14}/>
+                        </GlassButton>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      <BottomDock active="home" onChange={id=>navigateToVillage(id)} onSettings={()=>setModal('settings')} compact={false}/>
+
+      {modal&&<GlassModal title={modal==='settings'?t('settings'):t('settings')} onClose={()=>setModal('')}>
+        {modal==='settings'&&<div className="settings-body">
+          <LanguagePicker value={i18n.language} onChange={lng=>i18n.changeLanguage(lng)}/>
+          <p className="small-text muted">Core guidance is available in seven languages. Some supporting labels use English.</p>
+          <div className="settings-row">
+            <span>Appearance</span>
+            <div className="glass theme-switch">
+              <button aria-pressed={theme==='frost'} onClick={()=>setTheme('frost')}><Sun size={16}/>Frost</button>
+              <button aria-pressed={theme==='obsidian'} onClick={()=>setTheme('obsidian')}><Moon size={16}/>Obsidian</button>
+            </div>
+          </div>
+          {[['Larger text',large,setLarge],['High contrast',contrast,setContrast],['Reduce motion',motion,setMotion]].map(([label,value,setter])=>(
+            <div className="settings-row" key={label as string}>
+              <span>{label as string}</span>
+              <button className="glass switch" role="switch" aria-checked={value as boolean} aria-label={label as string} onClick={()=>(setter as (v:boolean)=>void)(!value)}><span/></button>
+            </div>
+          ))}
+          <GlassButton className="tilt-background-button" disabled={reduced} onClick={()=>window.dispatchEvent(new Event('twilight:enable-tilt'))}>Enable background tilt</GlassButton>
+          <p className="small-text muted">Your device's reduced-motion and reduced-transparency preferences are also respected.</p>
+        </div>}
+      </GlassModal>}
+    </main>
+  );
 }

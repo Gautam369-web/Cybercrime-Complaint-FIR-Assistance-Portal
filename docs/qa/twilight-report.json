@@ -4,7 +4,7 @@
       "theme": "Obsidian",
       "location": "bright",
       "text": "h2",
-      "minRatio": 14.73
+      "minRatio": 14.71
     },
     {
       "theme": "Obsidian",
@@ -16,13 +16,13 @@
       "theme": "Obsidian",
       "location": "dark",
       "text": "h2",
-      "minRatio": 15.22
+      "minRatio": 15.23
     },
     {
       "theme": "Obsidian",
       "location": "dark",
       "text": "p",
-      "minRatio": 10.34
+      "minRatio": 10.35
     },
     {
       "theme": "Frost",
@@ -63,15 +63,15 @@
   "performance": [
     {
       "environment": "Desktop Chrome Pixel 7 emulation, 4× CPU throttle, full village + wallpaper",
-      "frames": 276,
-      "durationMs": 5005.8,
-      "averageFps": 55.13604219105837,
-      "p95FrameMs": 33.30000000000018,
-      "staticFallbackAfterSample": false
+      "frames": 63,
+      "durationMs": 5029.000000000093,
+      "averageFps": 12.52734141976513,
+      "p95FrameMs": 133.40000000000055,
+      "staticFallbackAfterSample": true
     },
     {
       "environment": "Ambient wallpaper layers alone, mobile viewport, 4× CPU throttle",
-      "averageFps": 60.53689277028477
+      "averageFps": 59.94604855629096
     }
   ],
   "accessibility": [

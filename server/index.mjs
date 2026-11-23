@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import {rateLimit} from 'express-rate-limit';
 import multer from 'multer';
+import nodemailer from 'nodemailer';
 import {randomBytes,randomUUID,createHash,scrypt,timingSafeEqual} from 'node:crypto';
 import {promisify} from 'node:util';
 import fs from 'node:fs/promises';
@@ -19,9 +20,135 @@ const auth=(req,res,next)=>{const user=db.prepare('SELECT u.id,u.email,u.role FR
 const admin=(req,res,next)=>req.user.role==='admin'?next():res.status(403).json({error:'Administrator access required'});
 const getCase=(req,res,next)=>{const c=db.prepare('SELECT * FROM complaints WHERE id=?').get(req.params.id);if(!c||(c.owner!==req.user.id&&req.user.role!=='admin'))return res.status(404).json({error:'Complaint not found'});req.complaint=c;next();};
 const authLimit=rateLimit({windowMs:15*60000,limit:20,standardHeaders:'draft-7',legacyHeaders:false});
+
+function generateOTP(){return String(Math.floor(100000+Math.random()*900000));}
+
+let transporter=null;
+if(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS){
+  transporter=nodemailer.createTransport({
+    host:process.env.SMTP_HOST,
+    port:Number(process.env.SMTP_PORT),
+    secure:process.env.SMTP_SECURE==='true',
+    auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASS}
+  });
+}
+
+async function sendOTPEmail(email,otp){
+  if(!transporter){
+    console.log(`[DEV MODE] OTP for ${email}: ${otp}`);
+    return true;
+  }
+  try{
+    await transporter.sendMail({
+      from:process.env.SMTP_FROM||'Village of Justice <no-reply@village.local>',
+      to:email,
+      subject:'Your Village of Justice verification code',
+      text:`Your verification code is: ${otp}\n\nThis code expires in 10 minutes.\n\nIf you didn't request this, please ignore this email.`,
+      html:`<p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p><p>If you didn't request this, please ignore this email.</p>`
+    });
+    return true;
+  }catch(e){
+    console.error('Failed to send OTP email:',e);
+    return false;
+  }
+}
+
 app.get('/api/health',(req,res)=>res.json({ok:true,storage:'SQLite + private local files',aiEnabled:process.env.GEMINI_ENABLED==='true'&&process.env.GEMINI_PAID_SERVICE==='true'&&!!process.env.GEMINI_API_KEY&&!!process.env.GEMINI_MODEL}));
-app.post('/api/register',authLimit,async(req,res)=>{const {email,password}=req.body;if(typeof email!=='string'||!/^\S+@\S+\.\S+$/.test(email)||email.length>254||typeof password!=='string'||password.length<12||password.length>128)return res.status(400).json({error:'Use a valid email and a password of 12–128 characters.'});const salt=randomBytes(16).toString('hex');const digest=(await derive(password,salt,64)).toString('hex');try{db.prepare('INSERT INTO users(id,email,password) VALUES(?,?,?)').run(randomUUID(),email.toLowerCase().trim(),`${salt}:${digest}`);}catch{return res.status(400).json({error:'Unable to create account. Try signing in.'});}res.status(201).json({ok:true});});
-app.post('/api/login',authLimit,async(req,res)=>{const {email,password}=req.body;if(typeof email!=='string'||typeof password!=='string'||password.length>128)return res.status(400).json({error:'Invalid credentials'});const user=db.prepare('SELECT * FROM users WHERE email=?').get(email.toLowerCase().trim());const [salt,digest]=(user?.password||'0000000000000000:'+ '0'.repeat(128)).split(':');const actual=await derive(password,salt,64);if(!user||!timingSafeEqual(actual,Buffer.from(digest,'hex')))return res.status(401).json({error:'Email or password is incorrect'});const token=randomBytes(32).toString('hex');db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now());db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash(token),user.id,Date.now()+8*3600000);cookie(res,token);res.json({id:user.id,email:user.email,role:user.role});});
+app.post('/api/register',authLimit,async(req,res)=>{
+  const {email,password}=req.body;
+  if(typeof email!=='string'||!/^\S+@\S+\.\S+$/.test(email)||email.length>254||typeof password!=='string'||password.length<12||password.length>128){
+    return res.status(400).json({error:'Use a valid email and a password of 12–128 characters.'});
+  }
+  try {
+    const existing=db.prepare('SELECT id FROM users WHERE email=?').get(email.toLowerCase().trim());
+    if(existing){
+      return res.status(400).json({error:'An account with this email already exists. Please sign in or request a new OTP.'});
+    }
+    const salt=randomBytes(16).toString('hex');
+    const digest=(await derive(password,salt,64)).toString('hex');
+    const isAutoVerify = !transporter || process.env.NODE_ENV === 'test';
+    const verified = isAutoVerify ? 1 : 0;
+    const otp = isAutoVerify ? null : generateOTP();
+    const otpExpiry = isAutoVerify ? null : Date.now() + 10 * 60 * 1000;
+    const id=randomUUID();
+    db.prepare('INSERT INTO users(id,email,password,verified,otp_code,otp_expiry) VALUES(?,?,?,?,?,?)').run(id,email.toLowerCase().trim(),`${salt}:${digest}`,verified,otp,otpExpiry);
+    if (!isAutoVerify && otp) {
+      await sendOTPEmail(email,otp);
+      res.status(201).json({ok:true,message:'Account created. Please check your email for the verification code.',requiresOtp:true});
+    } else {
+      res.status(201).json({ok:true,message:'Account created. You can now sign in.',requiresOtp:false});
+    }
+  } catch (e) {
+    console.error('REGISTER ERROR:', e);
+    res.status(500).json({error:e.message||'Unable to complete this request.'});
+  }
+});
+
+app.post('/api/send-otp',authLimit,async(req,res)=>{
+  const {email}=req.body;
+  if(typeof email!=='string'||!/^\S+@\S+\.\S+$/.test(email)){
+    return res.status(400).json({error:'Enter a valid email address.'});
+  }
+  const user=db.prepare('SELECT id,verified FROM users WHERE email=?').get(email.toLowerCase().trim());
+  if(!user){
+    return res.status(404).json({error:'No account found with this email.'});
+  }
+  if(user.verified){
+    return res.status(400).json({error:'This account is already verified. Please sign in.'});
+  }
+  const otp=generateOTP();
+  const otpExpiry=Date.now()+10*60*1000;
+  db.prepare('UPDATE users SET otp_code=?,otp_expiry=? WHERE id=?').run(otp,otpExpiry,user.id);
+  await sendOTPEmail(email,otp);
+  res.json({ok:true,message:'Verification code sent. Check your email.'});
+});
+
+app.post('/api/verify-otp',authLimit,async(req,res)=>{
+  const {email,otp}=req.body;
+  if(typeof email!=='string'||typeof otp!=='string'||otp.length!==6){
+    return res.status(400).json({error:'Enter the 6-digit code from your email.'});
+  }
+  const user=db.prepare('SELECT id,otp_code,otp_expiry,verified FROM users WHERE email=?').get(email.toLowerCase().trim());
+  if(!user){
+    return res.status(404).json({error:'No account found with this email.'});
+  }
+  if(user.verified){
+    return res.status(400).json({error:'Account already verified. Please sign in.'});
+  }
+  if(!user.otp_code || user.otp_code!==otp){
+    return res.status(400).json({error:'Invalid verification code.'});
+  }
+  if(Date.now()>user.otp_expiry){
+    return res.status(400).json({error:'Verification code has expired. Request a new one.'});
+  }
+  db.prepare('UPDATE users SET verified=1,otp_code=NULL,otp_expiry=NULL WHERE id=?').run(user.id);
+  res.json({ok:true,message:'Email verified successfully. You can now sign in.'});
+});
+app.post('/api/login',authLimit,async(req,res)=>{
+  try{
+    const {email,password}=req.body||{};
+    if(typeof email!=='string'||typeof password!=='string'||password.length>128){
+      return res.status(400).json({error:'Invalid credentials'});
+    }
+    const user=db.prepare('SELECT * FROM users WHERE email=?').get(email.toLowerCase().trim());
+    const [salt,digest]=(user?.password||'0000000000000000:'+'0'.repeat(128)).split(':');
+    const actual=await derive(password,salt,64);
+    if(!user||!digest||digest.length!==128||!timingSafeEqual(actual,Buffer.from(digest,'hex'))){
+      return res.status(401).json({error:'Email or password is incorrect'});
+    }
+    if(!user.verified){
+      return res.status(403).json({error:'Please verify your email first. Check your inbox for the verification code.'});
+    }
+    const token=randomBytes(32).toString('hex');
+    db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now());
+    db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash(token),user.id,Date.now()+8*3600000);
+    cookie(res,token);
+    res.json({id:user.id,email:user.email,role:user.role});
+  }catch(err){
+    console.error('Login error:',err);
+    res.status(500).json({error:'Unable to complete sign in. Please try again.'});
+  }
+});
 app.post('/api/logout',(req,res)=>{db.prepare('DELETE FROM sessions WHERE token=?').run(hash(sessionToken(req)));res.clearCookie('portal_session',{path:'/'});res.json({ok:true});});
 app.get('/api/me',auth,(req,res)=>res.json(req.user));
 app.get('/api/complaints',auth,(req,res)=>res.json(db.prepare('SELECT id,title,status,created,updated FROM complaints WHERE owner=? ORDER BY created DESC LIMIT 100').all(req.user.id)));

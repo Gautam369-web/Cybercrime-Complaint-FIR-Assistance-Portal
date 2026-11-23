@@ -38,9 +38,15 @@ export default function App(){
   <a className="skip-link" href="#main-content">Skip to content</a>
   <div className="ambient ambient-one"/><div className="ambient ambient-two"/>
   <div className="brand" aria-label="Village of Justice"><span className="brand-mark"><ShieldCheck size={24}/></span><div>the village of <strong>justice</strong><span>A little guidance. A way forward.</span></div></div>
-  <div className="appearance-picker glass" aria-label="Appearance"><button aria-pressed={theme==='frost'} onClick={()=>setTheme('frost')}><Sun size={16}/>Frost</button><button aria-pressed={theme==='obsidian'} onClick={()=>setTheme('obsidian')}><Moon size={16}/>Obsidian</button></div>
-  <GlassButton className="quick-exit" onClick={quickExit}>Exit quickly <ArrowUpRight size={16}/></GlassButton>
-  <a href="#account" className="glass button account-entry">Account & application tracking</a>
+  <div className="top-actions-group">
+    <div className="appearance-picker glass" aria-label="Appearance"><button aria-pressed={theme==='frost'} onClick={()=>setTheme('frost')}><Sun size={16}/>Frost</button><button aria-pressed={theme==='obsidian'} onClick={()=>setTheme('obsidian')}><Moon size={16}/>Obsidian</button></div>
+    <a href="#account" className="glass button account-entry">
+      <FileText size={15}/>
+      <span className="account-text-full">Account & application tracking</span>
+      <span className="account-text-short">Account</span>
+    </a>
+    <GlassButton className="quick-exit" onClick={quickExit}>Exit quickly <ArrowUpRight size={16}/></GlassButton>
+  </div>
   <main id="main-content" ref={contentRef} className={active==='home'?'home-layout':'workspace-layout'} onScroll={()=>setTyping(false)}>
    <div role="region" className={`scene-area ${active!=='home'?'scene-background':''}`} aria-label="The Village of Justice, an interactive 3D village">
     {!simple?<Suspense fallback={<div className="scene-loading"><div className="skeleton"/>Opening the village…</div>}><VillageScene active={active} onNavigate={navigate} reducedMotion={reduced} onReady={()=>setReady(true)} onError={()=>{setSimple(true);setToast('Simple view is ready. All features are available without 3D.');}}/></Suspense>:<div className="village-map"><div className="map-orbit"/>{sections.map((id,i)=><GlassButton key={id} className={`map-building map-${i}`} onClick={()=>navigate(id)}><span>{['⌂','♜','▤','▥','♜','⌂'][i]}</span>{buildingNames[i]}<small>{t(id)}</small></GlassButton>)}<div className="map-center"><Leaf size={26}/><span>Fountain square</span></div></div>}
