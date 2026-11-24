@@ -240,25 +240,27 @@ export default function Management(){
   }
 
   useEffect(()=>{
+    if (isSupabaseConfigured && supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email || 'user@supabase.io',
+            role: 'user',
+            avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+            auth_provider: 'supabase'
+          });
+          load(false);
+        }
+      }).catch(()=>{})
+        .finally(()=>setChecking(false));
+      return;
+    }
+
     api('/me').then(u=>{
       setUser(u);
       return api('/complaints');
     }).then(setItems).catch(e=>{
-      if (isSupabaseConfigured && supabase) {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (session?.user) {
-            setUser({
-              id: session.user.id,
-              email: session.user.email || 'user@supabase.io',
-              role: 'user',
-              avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
-              auth_provider: 'google'
-            });
-            load(false);
-          }
-        });
-        return;
-      }
       if(e.message!=='Please sign in')setError('Start the local API to use accounts and tracking.');
     }).finally(()=>setChecking(false));
   },[]);
@@ -342,6 +344,16 @@ export default function Management(){
     }
     setBusy(true);setError('');setMessage('');
     try{
+      if (isSupabaseConfigured && supabase) {
+        const { data, error: supaErr } = await supabase.auth.signUp({ email, password });
+        if (!supaErr && data?.user) {
+          setMessage('Account created successfully. You can now sign in.');
+          setAuthStep('login');
+          return;
+        } else if (supaErr && !supaErr.message.toLowerCase().includes('fetch')) {
+          throw Error(supaErr.message);
+        }
+      }
       const res=await api('/register',{email,password});
       if(res.requiresOtp){
         setMessage(res.message||'Please check your email for the verification code.');
@@ -388,6 +400,23 @@ export default function Management(){
     }
     setBusy(true);setError('');setMessage('');
     try{
+      if (isSupabaseConfigured && supabase) {
+        const { data, error: supaErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (!supaErr && data?.user) {
+          setUser({
+            id: data.user.id,
+            email: data.user.email || email,
+            role: 'user',
+            avatar: data.user.user_metadata?.avatar_url || null,
+            auth_provider: 'supabase'
+          });
+          setPassword('');
+          await load(false);
+          return;
+        } else if (supaErr && !supaErr.message.toLowerCase().includes('fetch')) {
+          throw Error(supaErr.message);
+        }
+      }
       const u=await api('/login',{email,password});
       setUser(u);
       setPassword('');
