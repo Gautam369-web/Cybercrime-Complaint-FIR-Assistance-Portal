@@ -1,5 +1,6 @@
 import AccountJourney from './AccountJourney';
 import {useEffect,useState,useRef} from 'react';
+import {supabase,isSupabaseConfigured} from './supabase';
 import {GlassButton,GlassCard,GlassInput,GlassChip,GlassModal,GlassToast,BottomDock,LanguagePicker} from './components';
 import {ArrowRight,ArrowLeft,ArrowUpRight,ShieldCheck,LockKeyhole,Globe2,Phone,Compass,Sun,Moon,Check,Trash2,FileText,ChevronDown,ExternalLink,Plus,Upload,X,Radio} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
@@ -172,6 +173,21 @@ export default function Management(){
 
   async function load(isAdmin=admin){
     try{
+      if (isSupabaseConfigured && supabase) {
+        let query = supabase.from('complaints').select('*').order('created', { ascending: false });
+        if (!isAdmin && user && user.id) {
+          query = query.eq('owner', user.id);
+        }
+        const { data, error: supaErr } = await query;
+        if (!supaErr && data) {
+          setItems(data.map(item => ({
+            ...item,
+            details: typeof item.details === 'string' ? JSON.parse(item.details) : (item.details || {}),
+            ai: typeof item.ai === 'string' ? JSON.parse(item.ai) : (item.ai || { state: 'not_run' }),
+          })));
+          return;
+        }
+      }
       const data=await api(isAdmin?'/admin/complaints':'/complaints');
       setItems(data);
     }catch(e){
@@ -181,6 +197,24 @@ export default function Management(){
 
   async function open(id:string){
     try{
+      if (isSupabaseConfigured && supabase) {
+        const { data, error: supaErr } = await supabase.from('complaints').select('*').eq('id', id).single();
+        if (!supaErr && data) {
+          const eventsRes = await supabase.from('events').select('*').eq('complaint', id).order('created', { ascending: true });
+          const filesRes = await supabase.from('files').select('*').eq('complaint', id);
+          setSelected({
+            ...data,
+            details: typeof data.details === 'string' ? JSON.parse(data.details) : (data.details || {}),
+            ai: typeof data.ai === 'string' ? JSON.parse(data.ai) : (data.ai || { state: 'not_run' }),
+            events: eventsRes.data || [],
+            files: filesRes.data || []
+          });
+          setNote('');
+          setStatus('');
+          setView('complaint-detail');
+          return;
+        }
+      }
       const c=await api('/complaints/'+id);
       setSelected(c);
       setNote('');
@@ -196,9 +230,46 @@ export default function Management(){
       setUser(u);
       return api('/complaints');
     }).then(setItems).catch(e=>{
+      if (isSupabaseConfigured && supabase) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user) {
+            setUser({
+              id: session.user.id,
+              email: session.user.email || 'user@supabase.io',
+              role: 'user'
+            });
+            load(false);
+          }
+        });
+        return;
+      }
       if(e.message!=='Please sign in')setError('Start the local API to use accounts and tracking.');
     }).finally(()=>setChecking(false));
   },[]);
+
+  // Realtime Supabase subscription
+  useEffect(()=>{
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+    
+    const channel = client
+      .channel('complaints-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'complaints' },
+        (payload) => {
+          load(admin);
+          if (selected && payload.new && (payload.new as any).id === selected.id) {
+            setSelected(prev => prev ? { ...prev, ...(payload.new as any) } : prev);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, [user, admin, selected?.id]);
 
   useEffect(()=>{
     if(!user)return;
@@ -312,6 +383,31 @@ export default function Management(){
     }
     setBusy(true);setError('');setMessage('');
     try{
+      if (isSupabaseConfigured && supabase) {
+        const newCase = {
+          owner: user ? user.id : 'demo.user',
+          title: title.trim(),
+          narrative: narrative.trim(),
+          details: portalDraft,
+          status: 'pending_review',
+          ai: { state: 'not_run' },
+          ai_consent: consent ? 1 : 0,
+          created: new Date().toISOString(),
+          updated: new Date().toISOString()
+        };
+        const { data, error: insertErr } = await supabase.from('complaints').insert([newCase]).select();
+        if (!insertErr && data && data[0]) {
+          setMessage('Submitted to Realtime Database. Human review in progress.');
+          setTitle('');
+          setNarrative('');
+          setConsent(false);
+          setAiConsent(false);
+          portalDraft = {};
+          await load(admin);
+          await open(data[0].id);
+          return;
+        }
+      }
       const res=await api('/complaints',{
         title:title.trim(),
         narrative:narrative.trim(),
@@ -370,6 +466,26 @@ export default function Management(){
     }
     setBusy(true);setError('');
     try{
+      if (isSupabaseConfigured && supabase) {
+        const updates: any = { status, updated: new Date().toISOString() };
+        const { error: updateErr } = await supabase.from('complaints').update(updates).eq('id', selected.id);
+        if (!updateErr) {
+          await supabase.from('events').insert([{
+            complaint: selected.id,
+            actor: user ? user.id : 'admin',
+            status,
+            note: note.trim(),
+            created: new Date().toISOString()
+          }]);
+          const reason=note.trim();
+          setNote('');
+          setStatus('');
+          await open(selected.id);
+          setMessage(reason);
+          await load(true);
+          return;
+        }
+      }
       await api(`/admin/complaints/${selected.id}/status`,{status,note:note.trim()});
       const reason=note.trim();
       setNote('');
@@ -579,8 +695,9 @@ export default function Management(){
       {/* Hero Card */}
       <header className="management-hero-card glass card">
         <div className="hero-info">
-          <div className="row" style={{gap:10,marginBottom:6}}>
+          <div className="row" style={{gap:10,marginBottom:6,flexWrap:'wrap'}}>
             <span className="eyebrow small"><ShieldCheck size={14}/> PRIVATE & SECURE PORTAL</span>
+            {isSupabaseConfigured && <span className="realtime-chip">⚡ Realtime Database</span>}
             {user.role==='admin' && <span className="admin-chip">Administrator</span>}
           </div>
           <h1>{admin ? 'Admin review queue' : 'Complaint management'}</h1>
