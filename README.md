@@ -21,6 +21,8 @@ In a second terminal, run the Next.js app locally:
 npm run dev
 ```
 
+The two-process setup keeps the portal and its SQLite-backed complaint API available locally for development.
+
 Open http://127.0.0.1:5174. The API stays on port 5175 and Next.js proxies `/api` requests to it.
 
 To create and run a production build locally:
