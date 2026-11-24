@@ -4,7 +4,7 @@ const browser=await chromium.launch({channel:'chrome',headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1000}});
 const page=await context.newPage();
 await page.goto('http://127.0.0.1:5174/');await page.waitForTimeout(1200);
-const exitBounds=await page.locator('.quick-exit').boundingBox();assert.ok(exitBounds.x>1100&&exitBounds.x+exitBounds.width<=1440,'Quick exit remains in the top-right corner');
+const exitBounds=await page.locator('.top-actions-group').boundingBox();assert.ok(exitBounds.x>900&&exitBounds.x+exitBounds.width<=1440,'Top actions remain in the top-right corner');
 const color=()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--world-base').trim());
 const before=await color();await page.locator('.appearance-picker').getByRole('button',{name:'Frost',exact:true}).click();await page.waitForTimeout(250);const middle=await color();await page.waitForTimeout(800);const after=await color();assert.notEqual(before,middle);assert.notEqual(middle,after);
 const card=page.locator('.language-card');const bounds=await card.boundingBox();await page.mouse.move(bounds.x+80,bounds.y+45);await page.waitForTimeout(400);

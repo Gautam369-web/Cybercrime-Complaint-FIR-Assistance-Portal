@@ -731,9 +731,6 @@ export default function Management(){
               <button aria-pressed={theme==='frost'} onClick={()=>setTheme('frost')}><Sun size={16}/>Frost</button>
               <button aria-pressed={theme==='obsidian'} onClick={()=>setTheme('obsidian')}><Moon size={16}/>Obsidian</button>
             </div>
-            <GlassButton className="quick-exit" onClick={()=>window.location.replace('https://www.google.com')}>
-              Exit quickly <ArrowUpRight size={16}/>
-            </GlassButton>
           </div>
         </div>
         
@@ -860,9 +857,6 @@ export default function Management(){
             <button aria-pressed={theme==='frost'} onClick={()=>setTheme('frost')}><Sun size={16}/>Frost</button>
             <button aria-pressed={theme==='obsidian'} onClick={()=>setTheme('obsidian')}><Moon size={16}/>Obsidian</button>
           </div>
-          <GlassButton className="quick-exit" onClick={()=>window.location.replace('https://www.google.com')}>
-            Exit quickly <ArrowUpRight size={16}/>
-          </GlassButton>
         </div>
       </div>
       

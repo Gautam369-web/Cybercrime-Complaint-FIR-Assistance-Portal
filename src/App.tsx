@@ -45,7 +45,6 @@ export default function App(){
       <span className="account-text-full">Account & application tracking</span>
       <span className="account-text-short">Account</span>
     </a>
-    <GlassButton className="quick-exit" onClick={quickExit}>Exit quickly <ArrowUpRight size={16}/></GlassButton>
   </div>
   <main id="main-content" ref={contentRef} className={active==='home'?'home-layout':'workspace-layout'} onScroll={()=>setTyping(false)}>
    <div role="region" className={`scene-area ${active!=='home'?'scene-background':''}`} aria-label="The Village of Justice, an interactive 3D village">
