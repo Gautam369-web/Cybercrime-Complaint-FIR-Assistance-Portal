@@ -171,8 +171,8 @@ export default function Management(){
     if (isSupabaseConfigured && supabase) {
       try {
         const redirectUrl = typeof window !== 'undefined'
-          ? `${window.location.origin}/#account`
-          : 'https://fir-comp.vercel.app/#account';
+          ? `${window.location.origin}/`
+          : 'https://fir-comp.vercel.app/';
 
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
@@ -268,6 +268,74 @@ export default function Management(){
 
   useEffect(()=>{
     if (isSupabaseConfigured && supabase) {
+      // Check if URL has OAuth code or error to exchange
+      const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      let code = searchParams.get('code');
+      let oauthError = searchParams.get('error_description') || searchParams.get('error');
+
+      // Also check hash in case code was attached to hash: #account?code=... or #code=...
+      if (!code && typeof window !== 'undefined' && window.location.hash) {
+        const hashStr = window.location.hash.slice(1);
+        const qIdx = hashStr.indexOf('?');
+        const qStr = qIdx !== -1 ? hashStr.slice(qIdx + 1) : hashStr;
+        const hashParams = new URLSearchParams(qStr);
+        code = hashParams.get('code');
+        oauthError = oauthError || hashParams.get('error_description') || hashParams.get('error');
+      }
+
+      if (oauthError) {
+        setError(`Google sign-in error: ${oauthError}`);
+        setChecking(false);
+        return;
+      }
+
+      if (code) {
+        setBusy(true);
+        supabase.auth.exchangeCodeForSession(code).then(({ data, error: exErr }) => {
+          if (!exErr && data?.session?.user) {
+            const u = data.session.user;
+            setUser({
+              id: u.id,
+              email: u.email || 'google.user@example.com',
+              role: 'user',
+              avatar: u.user_metadata?.avatar_url || u.user_metadata?.picture || null,
+              auth_provider: 'google'
+            });
+            setMessage(`Signed in successfully as ${u.email}`);
+            if (typeof window !== 'undefined') {
+              window.history.replaceState(null, '', window.location.pathname + '#account');
+            }
+            load(false);
+          } else if (exErr) {
+            console.warn('exchangeCodeForSession error:', exErr.message);
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              if (session?.user) {
+                const su = session.user;
+                setUser({
+                  id: su.id,
+                  email: su.email || 'google.user@example.com',
+                  role: 'user',
+                  avatar: su.user_metadata?.avatar_url || su.user_metadata?.picture || null,
+                  auth_provider: 'google'
+                });
+                if (typeof window !== 'undefined') {
+                  window.history.replaceState(null, '', window.location.pathname + '#account');
+                }
+                load(false);
+              } else {
+                setError(`Google session error: ${exErr.message}`);
+              }
+            });
+          }
+        }).catch(err => {
+          setError(err.message || 'OAuth exchange failed');
+        }).finally(() => {
+          setBusy(false);
+          setChecking(false);
+        });
+        return;
+      }
+
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
           setUser({

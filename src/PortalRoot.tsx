@@ -8,12 +8,13 @@ function isAccountRoute(){
   if(typeof window==='undefined') return false;
   const hash = window.location.hash || '';
   const search = window.location.search || '';
+  const href = window.location.href || '';
   return (
     hash === '#account' ||
     hash.startsWith('#account') ||
-    hash.includes('access_token') ||
-    search.includes('code=') ||
-    search.includes('error=')
+    href.includes('code=') ||
+    href.includes('access_token=') ||
+    href.includes('error=')
   );
 }
 
