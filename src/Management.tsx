@@ -2,7 +2,7 @@ import AccountJourney from './AccountJourney';
 import {useEffect,useState,useRef} from 'react';
 import {supabase,isSupabaseConfigured} from './supabase';
 import {GlassButton,GlassCard,GlassInput,GlassChip,GlassModal,GlassToast,BottomDock,LanguagePicker} from './components';
-import {ArrowRight,ArrowLeft,ArrowUpRight,ShieldCheck,LockKeyhole,Globe2,Phone,Compass,Sun,Moon,Check,Trash2,FileText,ChevronDown,ExternalLink,Plus,Upload,X,Radio} from 'lucide-react';
+import {ArrowRight,ArrowLeft,ArrowUpRight,ShieldCheck,LockKeyhole,Globe2,Phone,Compass,Sun,Moon,Check,Trash2,FileText,ChevronDown,ExternalLink,Plus,Upload,X,Radio,Paperclip} from 'lucide-react';
 import {useTranslation} from 'react-i18next';
 import {languages} from './i18n';
 
@@ -79,6 +79,10 @@ export default function Management(){
   );
   const [googleModal,setGoogleModal]=useState(false);
   const [googleEmail,setGoogleEmail]=useState('');
+
+  // File upload state
+  const [isDragging,setIsDragging]=useState(false);
+  const fileInputRef=useRef<HTMLInputElement>(null);
 
   // Complaint submission form state
   const [title,setTitle]=useState('');
@@ -978,9 +982,47 @@ export default function Management(){
               ):(
                 <p className="muted small-text">No files uploaded yet.</p>
               )}
-              <div style={{marginTop:18}}>
-                <label className="field-label" htmlFor="upload-supporting-file">Add supporting files (PNG, JPEG, PDF up to 5 MB)</label>
-                <GlassInput id="upload-supporting-file" type="file" accept=".png,.jpeg,.jpg,.pdf" onChange={e=>handleFileUpload(e.target.files)}/>
+              <div
+                className={`awesome-file-dropzone ${isDragging ? 'dragging' : ''}`}
+                onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={e => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  handleFileUpload(e.dataTransfer.files);
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+                aria-label="Choose or drop supporting files"
+              >
+                <input
+                  ref={fileInputRef}
+                  id="upload-supporting-file"
+                  type="file"
+                  className="sr-only-file"
+                  accept=".png,.jpeg,.jpg,.pdf"
+                  onChange={e => {
+                    handleFileUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <div className="upload-halo-badge">
+                  <Upload size={24} />
+                </div>
+                <div className="upload-text-content">
+                  <strong className="upload-main-title">
+                    {busy ? 'Uploading file…' : 'Drop supporting files here'}
+                  </strong>
+                  <p className="upload-sub-text">
+                    or click to browse from your device · PNG, JPEG, PDF up to 5 MB
+                  </p>
+                </div>
+                <div className="upload-pill-btn">
+                  <Paperclip size={14} />
+                  <span>Choose File</span>
+                </div>
               </div>
             </div>
           </details>
