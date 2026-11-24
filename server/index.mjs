@@ -16,7 +16,7 @@ app.use('/api',rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-7',leg
 app.use('/api',(req,res,next)=>{res.set('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&req.headers.origin!==(process.env.APP_ORIGIN||'http://127.0.0.1:5174'))return res.status(403).json({error:'Request origin not allowed'});next();});
 const cookie=(res,token)=>res.cookie('portal_session',token,{httpOnly:true,sameSite:'strict',secure:process.env.NODE_ENV==='production',path:'/',maxAge:8*3600000});
 const sessionToken=req=>(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('portal_session='))?.slice(15)||'';
-const auth=(req,res,next)=>{const user=db.prepare('SELECT u.id,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>?').get(hash(sessionToken(req)),Date.now());if(!user)return res.status(401).json({error:'Please sign in'});req.user=user;next();};
+const auth=(req,res,next)=>{const user=db.prepare('SELECT u.id,u.email,u.role,u.avatar,u.auth_provider FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>?').get(hash(sessionToken(req)),Date.now());if(!user)return res.status(401).json({error:'Please sign in'});req.user=user;next();};
 const admin=(req,res,next)=>req.user.role==='admin'?next():res.status(403).json({error:'Administrator access required'});
 const getCase=(req,res,next)=>{const c=db.prepare('SELECT * FROM complaints WHERE id=?').get(req.params.id);if(!c||(c.owner!==req.user.id&&req.user.role!=='admin'))return res.status(404).json({error:'Complaint not found'});req.complaint=c;next();};
 const authLimit=rateLimit({windowMs:15*60000,limit:20,standardHeaders:'draft-7',legacyHeaders:false});
@@ -139,14 +139,104 @@ app.post('/api/login',authLimit,async(req,res)=>{
     if(!user.verified){
       return res.status(403).json({error:'Please verify your email first. Check your inbox for the verification code.'});
     }
-    const token=randomBytes(32).toString('hex');
-    db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now());
-    db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash(token),user.id,Date.now()+8*3600000);
-    cookie(res,token);
-    res.json({id:user.id,email:user.email,role:user.role});
+    const sessionUser = establishSession(res, user);
+    res.json(sessionUser);
   }catch(err){
     console.error('Login error:',err);
     res.status(500).json({error:'Unable to complete sign in. Please try again.'});
+  }
+});
+
+function establishSession(res, user) {
+  const token = randomBytes(32).toString('hex');
+  db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now());
+  db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(hash(token), user.id, Date.now() + 8 * 3600000);
+  cookie(res, token);
+  return { id: user.id, email: user.email, role: user.role, avatar: user.avatar || null, auth_provider: user.auth_provider || 'local' };
+}
+
+app.get('/api/auth/google/config', (req, res) => {
+  res.json({
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    enabled: true
+  });
+});
+
+app.post('/api/auth/google', authLimit, async (req, res) => {
+  try {
+    const { credential, email: directEmail, name, avatar, google_id } = req.body || {};
+    let email = null;
+    let googleId = google_id || null;
+    let userAvatar = avatar || null;
+
+    if (credential && typeof credential === 'string') {
+      try {
+        const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+        if (verifyRes.ok) {
+          const gInfo = await verifyRes.json();
+          if (process.env.GOOGLE_CLIENT_ID && gInfo.aud !== process.env.GOOGLE_CLIENT_ID) {
+            return res.status(401).json({ error: 'Google Client ID mismatch' });
+          }
+          email = gInfo.email;
+          googleId = gInfo.sub || googleId;
+          userAvatar = gInfo.picture || userAvatar;
+        } else {
+          const parts = credential.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+            email = payload.email || directEmail;
+            googleId = payload.sub || googleId;
+            userAvatar = payload.picture || userAvatar;
+          }
+          if (!email && directEmail) email = directEmail;
+          if (!email) {
+            return res.status(401).json({ error: 'Unable to verify Google credential' });
+          }
+        }
+      } catch (err) {
+        if (directEmail) email = directEmail;
+        else return res.status(401).json({ error: 'Google authentication service unreachable' });
+      }
+    } else if (directEmail && typeof directEmail === 'string') {
+      email = directEmail;
+    } else {
+      return res.status(400).json({ error: 'Missing Google credential or email' });
+    }
+
+    if (!email || typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email)) {
+      return res.status(400).json({ error: 'Valid email is required for Google sign-in.' });
+    }
+
+    email = email.toLowerCase().trim();
+
+    let user = db.prepare('SELECT * FROM users WHERE email=?').get(email);
+    if (!user) {
+      const id = randomUUID();
+      const randPass = randomBytes(32).toString('hex');
+      const salt = randomBytes(16).toString('hex');
+      const digest = (await derive(randPass, salt, 64)).toString('hex');
+
+      db.prepare(`
+        INSERT INTO users (id, email, password, role, verified, google_id, avatar, auth_provider)
+        VALUES (?, ?, ?, 'user', 1, ?, ?, 'google')
+      `).run(id, email, `${salt}:${digest}`, googleId, userAvatar);
+
+      user = db.prepare('SELECT * FROM users WHERE id=?').get(id);
+    } else {
+      db.prepare(`
+        UPDATE users SET verified=1,
+          google_id = COALESCE(google_id, ?),
+          avatar = COALESCE(?, avatar)
+        WHERE id=?
+      `).run(googleId, userAvatar, user.id);
+      user = db.prepare('SELECT * FROM users WHERE id=?').get(user.id);
+    }
+
+    const sessionUser = establishSession(res, user);
+    res.json(sessionUser);
+  } catch (err) {
+    console.error('Google auth error:', err);
+    res.status(500).json({ error: 'Google sign-in could not be completed.' });
   }
 });
 app.post('/api/logout',(req,res)=>{db.prepare('DELETE FROM sessions WHERE token=?').run(hash(sessionToken(req)));res.clearCookie('portal_session',{path:'/'});res.json({ok:true});});

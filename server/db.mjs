@@ -13,3 +13,7 @@ CREATE INDEX IF NOT EXISTS complaints_status ON complaints(status,created);
 CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT,complaint TEXT NOT NULL REFERENCES complaints(id),actor TEXT NOT NULL REFERENCES users(id),status TEXT NOT NULL,note TEXT NOT NULL,created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS files(id TEXT PRIMARY KEY,complaint TEXT NOT NULL REFERENCES complaints(id),name TEXT NOT NULL,mime TEXT NOT NULL,size INTEGER NOT NULL);
 `);
+try { db.exec('ALTER TABLE users ADD COLUMN google_id TEXT;'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT;'); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local';"); } catch {}
+

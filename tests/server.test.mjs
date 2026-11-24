@@ -32,5 +32,11 @@ test('private accounts, admin review, evidence and fail-safe AI workflow',async(
  assert.equal((await request(`/admin/complaints/${id}/status`,{status:'approved',note:'Reviewed by a human administrator.'},admin)).status,200);
  const tracked=await request('/complaints/'+id,undefined,owner);assert.equal(tracked.data.status,'approved');assert.equal(tracked.data.events.length,2);assert.equal(tracked.data.files.length,1);assert.equal(tracked.data.ai,undefined);
  await request('/logout',{},owner);assert.equal((await request('/me',undefined,owner)).status,401);
+ const googleAuth=await request('/auth/google',{email:'google.user@example.com',name:'Google User',google_id:'g-12345'});
+ assert.equal(googleAuth.status,200);
+ assert.equal(googleAuth.data.email,'google.user@example.com');
+ const googleMe=await request('/me',undefined,googleAuth.cookie);
+ assert.equal(googleMe.status,200);
+ assert.equal(googleMe.data.email,'google.user@example.com');
  }finally{proc.kill();await once(proc,'exit');await rm(dir,{recursive:true,force:true});}
 });

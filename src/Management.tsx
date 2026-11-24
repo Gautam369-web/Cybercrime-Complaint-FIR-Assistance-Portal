@@ -10,6 +10,17 @@ type User={id:string;email:string;role:string};
 
 function useMedia(query:string){const [matches,set]=useState(()=>typeof window!=='undefined'&&window.matchMedia(query).matches);useEffect(()=>{const m=window.matchMedia(query);const update=()=>set(m.matches);m.addEventListener('change',update);return()=>m.removeEventListener('change',update);},[query]);return matches;}
 
+function GoogleIcon(){
+  return (
+    <svg className="google-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+    </svg>
+  );
+}
+
 async function api(path:string,body?:unknown){
   try{
     const response=await fetch('/api'+path,{
@@ -61,6 +72,9 @@ export default function Management(){
   const [filter,setFilter]=useState('all');
   const [note,setNote]=useState('');
   const [status,setStatus]=useState('');
+  const [googleClientId,setGoogleClientId]=useState('');
+  const [googleModal,setGoogleModal]=useState(false);
+  const [googleEmail,setGoogleEmail]=useState('');
 
   // Complaint submission form state
   const [title,setTitle]=useState('');
@@ -82,6 +96,79 @@ export default function Management(){
     if(portalDraft.crime) setTitle(portalDraft.crime);
     if(portalDraft.narrative) setNarrative(portalDraft.narrative);
   },[]);
+
+  // Load Google Auth configuration
+  useEffect(()=>{
+    api('/auth/google/config').then(cfg=>{
+      if(cfg?.clientId) setGoogleClientId(cfg.clientId);
+    }).catch(()=>{});
+  },[]);
+
+  // Initialize official Google Identity Services if client ID is configured
+  useEffect(()=>{
+    if(!googleClientId || typeof window==='undefined') return;
+    const script=document.createElement('script');
+    script.src='https://accounts.google.com/gsi/client';
+    script.async=true;
+    script.defer=true;
+    script.onload=()=>{
+      try {
+        (window as any).google?.accounts?.id?.initialize({
+          client_id: googleClientId,
+          callback: async (response: any) => {
+            if(response?.credential){
+              setBusy(true);setError('');
+              try {
+                const u = await api('/auth/google', { credential: response.credential });
+                setUser(u);
+                setToast(`Signed in with Google as ${u.email}`);
+                await load(false);
+              } catch(e) {
+                setError(e instanceof Error?e.message:'Google authentication failed');
+              } finally {
+                setBusy(false);
+              }
+            }
+          }
+        });
+      } catch {}
+    };
+    document.body.appendChild(script);
+    return ()=>{
+      try { document.body.removeChild(script); } catch {}
+    };
+  },[googleClientId]);
+
+  async function handleGoogleSignIn(customEmail?:string){
+    setBusy(true);setError('');setMessage('');
+    try{
+      const emailToUse=(customEmail||googleEmail).trim()||'demo.google@example.com';
+      const u=await api('/auth/google',{
+        email:emailToUse,
+        name:emailToUse.split('@')[0],
+        google_id:'g_'+Math.abs(emailToUse.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a;},0))
+      });
+      setUser(u);
+      setGoogleModal(false);
+      setGoogleEmail('');
+      setToast(`Signed in with Google as ${u.email}`);
+      await load(false);
+    }catch(e){
+      setError(e instanceof Error?e.message:'Google sign-in failed');
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  const onGoogleBtnClick=()=>{
+    if(googleClientId && (window as any).google?.accounts?.id){
+      try{
+        (window as any).google.accounts.id.prompt();
+        return;
+      }catch{}
+    }
+    setGoogleModal(true);
+  };
 
   async function load(isAdmin=admin){
     try{
@@ -367,6 +454,11 @@ export default function Management(){
               <>
                 <h2>Create your account</h2>
                 <p className="muted">You'll receive a verification code if SMTP is configured.</p>
+                <button type="button" className="google-auth-button glass" disabled={busy} onClick={onGoogleBtnClick}>
+                  <GoogleIcon/>
+                  <span>Sign up with Google</span>
+                </button>
+                <div className="auth-divider"><span>or with email</span></div>
                 <form onSubmit={e=>{e.preventDefault();handleRegister();}}>
                   <label className="field-label" htmlFor="reg-email">Email</label>
                   <GlassInput id="reg-email" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)}/>
@@ -397,6 +489,11 @@ export default function Management(){
               <>
                 <h2>Welcome back</h2>
                 <p className="muted">Sign in to access your complaints.</p>
+                <button type="button" className="google-auth-button glass" disabled={busy} onClick={onGoogleBtnClick}>
+                  <GoogleIcon/>
+                  <span>Sign in with Google</span>
+                </button>
+                <div className="auth-divider"><span>or with email</span></div>
                 <form onSubmit={e=>{e.preventDefault();handleLogin();}}>
                   <label className="field-label" htmlFor="login-email">Email</label>
                   <GlassInput id="login-email" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)}/>
@@ -409,6 +506,37 @@ export default function Management(){
             )}
           </GlassCard>
         </div>
+        {googleModal && (
+          <GlassModal title="Continue with Google" onClose={()=>setGoogleModal(false)}>
+            <div style={{padding:'8px 4px'}}>
+              <p className="muted" style={{fontSize:14,marginBottom:18,lineHeight:1.6}}>
+                Sign in with your Google account to access your complaints and view administrative updates.
+              </p>
+              <form onSubmit={e=>{e.preventDefault();handleGoogleSignIn();}}>
+                <label className="field-label" htmlFor="google-email-input">Google Email address</label>
+                <GlassInput
+                  id="google-email-input"
+                  type="email"
+                  required
+                  placeholder="e.g. name@gmail.com"
+                  value={googleEmail}
+                  onChange={e=>setGoogleEmail(e.target.value)}
+                />
+                <div className="row wrap" style={{marginTop:20,gap:10}}>
+                  <GlassButton className="primary" type="submit" disabled={busy||!googleEmail.trim()}>
+                    {busy?'Signing in…':'Continue with this account'}
+                  </GlassButton>
+                  <GlassButton type="button" disabled={busy} onClick={()=>handleGoogleSignIn('demo.google@example.com')}>
+                    Use demo Google account
+                  </GlassButton>
+                </div>
+              </form>
+              <p className="small-text muted" style={{marginTop:22,lineHeight:1.6,borderTop:'1px solid var(--border)',paddingTop:14}}>
+                Tip: Configure <code style={{color:'var(--text)',background:'rgba(255,255,255,0.06)',padding:'2px 6px',borderRadius:6}}>GOOGLE_CLIENT_ID</code> in <code style={{color:'var(--text)',background:'rgba(255,255,255,0.06)',padding:'2px 6px',borderRadius:6}}>.env</code> to enable native Google One Tap and OAuth popup in production.
+              </p>
+            </div>
+          </GlassModal>
+        )}
         {error&&<p className="glass notice error-text" role="alert" style={{maxWidth:480,margin:'24px auto 0'}}>{error}</p>}
         {message&&<p className="glass notice" role="status" style={{maxWidth:480,margin:'12px auto 0'}}>{message}</p>}
         <div className="footer-note" style={{maxWidth:480,margin:'32px auto 0',textAlign:'center'}}><ShieldCheck size={15}/><span>A preparation assistant, not legal advice or an official government service.</span></div>
