@@ -73,7 +73,10 @@ export default function Management(){
   const [filter,setFilter]=useState('all');
   const [note,setNote]=useState('');
   const [status,setStatus]=useState('');
-  const [googleClientId,setGoogleClientId]=useState(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '');
+  const [googleClientId,setGoogleClientId]=useState(
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+    '421343221241-k4cvgu1mqcd1lhcbdki6oufnsoou5kgv.apps.googleusercontent.com'
+  );
   const [googleModal,setGoogleModal]=useState(false);
   const [googleEmail,setGoogleEmail]=useState('');
 
