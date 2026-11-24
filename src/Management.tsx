@@ -162,26 +162,50 @@ export default function Management(){
   }
 
   const onGoogleBtnClick = async () => {
+    setBusy(true);
+    setError('');
+    setMessage('');
     if (isSupabaseConfigured && supabase) {
       try {
-        const { error } = await supabase.auth.signInWithOAuth({
+        const redirectUrl = typeof window !== 'undefined'
+          ? `${window.location.origin}/#account`
+          : 'https://fir-comp.vercel.app/#account';
+
+        const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: window.location.origin + '/#account',
+            redirectTo: redirectUrl,
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent',
+            },
           },
         });
-        if (!error) return;
-        console.warn('Supabase Google OAuth initiation message:', error.message);
-      } catch (err) {
+        if (error) {
+          console.warn('Supabase Google OAuth initiation error:', error.message);
+          setError(`Google sign-in error: ${error.message}`);
+          setBusy(false);
+          setGoogleModal(true);
+          return;
+        }
+        if (data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+      } catch (err: any) {
         console.warn('Supabase Google OAuth exception:', err);
+        setError(err.message || 'Google sign-in failed');
+        setBusy(false);
       }
     }
     if (googleClientId && (window as any).google?.accounts?.id) {
       try {
         (window as any).google.accounts.id.prompt();
+        setBusy(false);
         return;
       } catch {}
     }
+    setBusy(false);
     setGoogleModal(true);
   };
 
@@ -277,10 +301,16 @@ export default function Management(){
           avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
           auth_provider: 'google'
         });
+        setMessage(`Signed in successfully as ${session.user.email || 'Google User'}`);
+        if (typeof window !== 'undefined' && (window.location.search.includes('code=') || window.location.hash.includes('access_token'))) {
+          window.history.replaceState(null, '', window.location.pathname + '#account');
+        }
+        setChecking(false);
         await load(false);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setItems([]);
+        setChecking(false);
       }
     });
     return () => {
