@@ -73,7 +73,7 @@ export default function Management(){
   const [filter,setFilter]=useState('all');
   const [note,setNote]=useState('');
   const [status,setStatus]=useState('');
-  const [googleClientId,setGoogleClientId]=useState('');
+  const [googleClientId,setGoogleClientId]=useState(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '');
   const [googleModal,setGoogleModal]=useState(false);
   const [googleEmail,setGoogleEmail]=useState('');
 
