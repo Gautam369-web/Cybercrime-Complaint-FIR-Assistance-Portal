@@ -66,3 +66,5 @@ This is a client-side guided questionnaire and local mock confirmation, not an A
 - https://www.mha.gov.in/MHA1/Par2017/pdfs/par2025-pdfs/LS16122025/2645.pdf (1930 / official portal)
 
 docs/glass-reference.png was created with the built-in image-generation tool. Prompt: paired Frost and Obsidian material reference, monochrome frosted six-segment dock and charcoal circular toggles, top-left specular edges, soft shadows, high-contrast labels, serene protective mood, landscape 16:9.
+
+--------end----------------
