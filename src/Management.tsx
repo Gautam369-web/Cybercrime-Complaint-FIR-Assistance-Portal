@@ -7,7 +7,7 @@ import {useTranslation} from 'react-i18next';
 import {languages} from './i18n';
 
 type Case={id:string;title:string;status:string;narrative:string;created:string;updated:string;details:Record<string,string>;ai?:{state:string;flag?:string;reason?:string;summary?:string;questions?:string[]};ai_consent?:number;owner?:string;events?:{status:string;note:string;created:string}[];files?:{id:string;name:string;size:number}[]};
-type User={id:string;email:string;role:string};
+type User={id:string;email:string;role:string;avatar?:string|null;auth_provider?:string};
 
 function useMedia(query:string){const [matches,set]=useState(()=>typeof window!=='undefined'&&window.matchMedia(query).matches);useEffect(()=>{const m=window.matchMedia(query);const update=()=>set(m.matches);m.addEventListener('change',update);return()=>m.removeEventListener('change',update);},[query]);return matches;}
 
@@ -161,12 +161,26 @@ export default function Management(){
     }
   }
 
-  const onGoogleBtnClick=()=>{
-    if(googleClientId && (window as any).google?.accounts?.id){
-      try{
+  const onGoogleBtnClick = async () => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin + '/#account',
+          },
+        });
+        if (!error) return;
+        console.warn('Supabase Google OAuth initiation message:', error.message);
+      } catch (err) {
+        console.warn('Supabase Google OAuth exception:', err);
+      }
+    }
+    if (googleClientId && (window as any).google?.accounts?.id) {
+      try {
         (window as any).google.accounts.id.prompt();
         return;
-      }catch{}
+      } catch {}
     }
     setGoogleModal(true);
   };
@@ -236,7 +250,9 @@ export default function Management(){
             setUser({
               id: session.user.id,
               email: session.user.email || 'user@supabase.io',
-              role: 'user'
+              role: 'user',
+              avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+              auth_provider: 'google'
             });
             load(false);
           }
@@ -246,6 +262,29 @@ export default function Management(){
       if(e.message!=='Please sign in')setError('Start the local API to use accounts and tracking.');
     }).finally(()=>setChecking(false));
   },[]);
+
+  // Listen to Supabase auth state changes (e.g. after Google OAuth redirect)
+  useEffect(()=>{
+    if (!isSupabaseConfigured || !supabase) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || 'user@supabase.io',
+          role: 'user',
+          avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+          auth_provider: 'google'
+        });
+        await load(false);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setItems([]);
+      }
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Realtime Supabase subscription
   useEffect(()=>{
@@ -358,6 +397,11 @@ export default function Management(){
   }
 
   async function handleLogout(){
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch {}
+    }
     try{
       await api('/logout',{});
     }catch{}
