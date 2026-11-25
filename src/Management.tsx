@@ -410,6 +410,15 @@ export default function Management(){
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'events' },
+        (payload) => {
+          if (selected && payload.new && (payload.new as any).complaint === selected.id) {
+            open(selected.id);
+          }
+        }
+      )
       .subscribe();
 
     return () => {
@@ -418,7 +427,7 @@ export default function Management(){
   }, [user, admin, selected?.id]);
 
   useEffect(()=>{
-    if(!user)return;
+    if(!user || isSupabaseConfigured)return;
     const timer=setInterval(()=>{
       api(admin?'/admin/complaints':'/complaints').then(setItems).catch(()=>{});
       if(selected)api('/complaints/'+selected.id).then(setSelected).catch(()=>{});
@@ -622,6 +631,22 @@ export default function Management(){
     }
     setBusy(true);setError('');
     try{
+      if (isSupabaseConfigured && supabase) {
+        const nowIso = new Date().toISOString();
+        const { error: fErr } = await supabase.from('files').insert([{
+          complaint: selected.id,
+          name: file.name,
+          mime: file.type,
+          size: file.size,
+          created: nowIso
+        }]);
+        if (fErr) throw Error(fErr.message);
+        await supabase.from('complaints').update({ updated: nowIso }).eq('id', selected.id);
+        await open(selected.id);
+        setToast('File attached successfully.');
+        await load(admin);
+        return;
+      }
       const form=new FormData();
       form.append('file',file);
       await api(`/complaints/${selected.id}/files`,form);
@@ -687,6 +712,23 @@ export default function Management(){
     }
     setBusy(true);setError('');
     try{
+      if (isSupabaseConfigured && supabase) {
+        const nowIso = new Date().toISOString();
+        const { error: evErr } = await supabase.from('events').insert([{
+          complaint: selected.id,
+          actor: user ? user.id : 'user',
+          status: selected.status,
+          note: note.trim(),
+          created: nowIso
+        }]);
+        if (evErr) throw Error(evErr.message);
+        await supabase.from('complaints').update({ updated: nowIso }).eq('id', selected.id);
+        setNote('');
+        await open(selected.id);
+        setToast('Reply sent to review team.');
+        await load(admin);
+        return;
+      }
       await api(`/complaints/${selected.id}/reply`,{note:note.trim()});
       setNote('');
       const updated=await api('/complaints/'+selected.id);
